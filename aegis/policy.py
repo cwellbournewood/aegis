@@ -23,8 +23,8 @@ from aegis.lattice import FlowRule, LatticeDecision, default_rules
 
 @dataclass
 class AnchorConfig:
-    threshold_balanced: float = 0.30
-    threshold_strict: float = 0.45
+    threshold_balanced: float = 0.22
+    threshold_strict: float = 0.40
     embedder: dict[str, Any] = field(default_factory=lambda: {"kind": "hashing", "dim": 384})
     refresh: str = "session"  # "session" | "turn" | "explicit"
 
@@ -80,8 +80,8 @@ def _policy_from_dict(data: dict[str, Any]) -> Policy:
 
     anchor_data = data.get("anchor", {}) or {}
     anchor = AnchorConfig(
-        threshold_balanced=float(anchor_data.get("threshold_balanced", 0.30)),
-        threshold_strict=float(anchor_data.get("threshold_strict", 0.45)),
+        threshold_balanced=float(anchor_data.get("threshold_balanced", 0.22)),
+        threshold_strict=float(anchor_data.get("threshold_strict", 0.40)),
         embedder=anchor_data.get("embedder") or {"kind": "hashing", "dim": 384},
         refresh=str(anchor_data.get("refresh", "session")),
     )

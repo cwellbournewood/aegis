@@ -205,7 +205,7 @@ The RFP flags these as Phase-0/1 unknowns:
 
 1. **Intent Anchor false-positive rate on legitimate multi-step tasks.** Open agentic workflows legitimately drift. Mitigation: per-step re-anchoring, task decomposition hooks.
 2. **Canary attrition.** As AEGIS becomes known, attackers will craft canary-aware injections. Mitigation: per-session randomization, multiple canary phrasings, treat as one signal.
-3. **Causal origin tracking through model rephrasing.** When the model paraphrases L0 content into its own response and that response is fed back as context, naive tracking loses the L0 taint. v1 supports `derive_child` for explicit propagation; v2 will explore principled taint analysis.
+3. **Causal origin tracking through model rephrasing.** When the model paraphrases L0 content into its own response and that response is fed back as context, naive tracking loses the L0 taint. v1 ships `derive_child` for explicit propagation; principled taint analysis is an open research direction.
 4. **Upstream wire-format drift.** Adapters are versioned per `proxy/adapters.py` and tested against real provider request shapes.
 5. **Capability schema expressiveness.** Tunable per-tool; default constraints (`eq`, `in`, `regex`, `prefix`, `max_len`, `any`) cover most cases.
 6. **Performance of embedding model on CPU at p99.** Default hashing embedder has ~zero overhead. For higher-quality drift, use ONNX-quantized MiniLM via `aegis-guard[embed]`.

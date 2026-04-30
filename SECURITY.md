@@ -6,7 +6,7 @@ Please **do not** file public GitHub issues for security vulnerabilities.
 
 Instead, open a **[private GitHub Security Advisory](https://github.com/cwellbournewood/aegis/security/advisories/new)** on this repository.
 
-We will acknowledge within **72 hours** and aim to ship a fix or coordinated mitigation within **14 days** for high-severity issues.
+This is a community-maintained project. There is no SLA on triage or fix turnaround — reports are handled on a best-effort basis. If timely vendor support is critical for your use case, fork the repository and run your own audit/maintenance cadence.
 
 ## Scope
 
@@ -25,19 +25,10 @@ Issues out of scope (see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for full l
 - Denial-of-service at the network layer (handle via your reverse proxy)
 - Issues in upstream LLM provider APIs
 
-## Supported versions
-
-| Version | Supported |
-|---|---|
-| 1.0.x | Yes |
-| < 1.0  | No |
-
-We support the most recent minor release with security fixes for at least 6 months after a successor minor lands.
-
 ## Crypto and dependencies
 
-AEGIS uses vetted libraries (`cryptography`, Python stdlib `hmac` / `secrets` / `hashlib`). No custom cryptographic primitives. Dependencies are pinned in `pyproject.toml` and reviewed before bumping.
+AEGIS uses vetted libraries (`cryptography`, Python stdlib `hmac` / `secrets` / `hashlib`). No custom cryptographic primitives. Dependencies are pinned in `pyproject.toml`.
 
 ## Acknowledgements
 
-Reporters who follow this policy in good faith will be credited (with permission) in the release notes for the fixing version.
+Reporters who follow this policy in good faith may be credited (with permission) in the release notes for the fixing version.

@@ -1,20 +1,29 @@
 """Intent Vector Anchoring.
 
-Captures an embedding of the user's original request once per session/turn,
-then computes cosine similarity between that anchor and the embeddings of
+Captures embeddings of the user's request(s) for a session, then computes
+cosine similarity between the highest-matching anchor and the embeddings of
 proposed tool calls. Drift below a threshold triggers WARN/BLOCK.
 
 The default embedder is a deterministic local TF/character-n-gram embedder
 (no torch dependency) so AEGIS works zero-config out of the box. For higher
 quality, callers can install the `embed` extra (sentence-transformers) or
 configure a hosted embedder via `hosted-embed`.
+
+False-positive mitigation:
+    - Multi-anchor: a session can accumulate multiple anchor vectors (one per
+      user turn). Drift is scored against the *closest* anchor — so multi-step
+      tasks don't trigger drift just because the user changed sub-task.
+    - LRU embedding cache: repeated text inputs hit the embedder once per
+      process, reducing latency for chatty agentic loops.
 """
 
 from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
+from collections import OrderedDict
+from dataclasses import dataclass, field
+from threading import Lock
 from typing import Any, Protocol
 
 import numpy as np
@@ -22,16 +31,43 @@ import numpy as np
 
 @dataclass
 class AnchorVector:
-    """A vector + the raw text it was derived from."""
+    """A vector + the raw text it was derived from.
+
+    For backwards compatibility, AnchorVector represents either a single anchor
+    (text + vector) or, when used as a multi-anchor container, a stack of
+    additional `texts`/`vectors`. `IntentAnchor.drift` always picks the best
+    match across all anchors.
+    """
 
     text: str
     vector: np.ndarray
     model_id: str
+    texts: list[str] = field(default_factory=list)
+    vectors: list[np.ndarray] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         norm = float(np.linalg.norm(self.vector))
         if norm > 0:
             self.vector = self.vector / norm
+        # Initialize multi-anchor list with the primary anchor.
+        if not self.texts:
+            self.texts = [self.text]
+            self.vectors = [self.vector]
+
+    def add(self, text: str, vector: np.ndarray) -> None:
+        """Append a new anchor (e.g., when user moves to a new sub-task)."""
+        norm = float(np.linalg.norm(vector))
+        if norm > 0:
+            vector = vector / norm
+        # De-dup on text — repeated identical user messages don't multiply anchors.
+        if text in self.texts:
+            return
+        self.texts.append(text)
+        self.vectors.append(vector)
+
+    @property
+    def all_vectors(self) -> list[np.ndarray]:
+        return self.vectors if self.vectors else [self.vector]
 
 
 class Embedder(Protocol):
@@ -152,22 +188,80 @@ class DriftScore:
     action_text: str
 
 
+class _LRUCache:
+    """Tiny thread-safe LRU for embedded vectors. Avoids re-embedding the same
+    text within a process — repeated user messages and tool-call summaries are
+    common in agentic loops."""
+
+    def __init__(self, capacity: int = 1024) -> None:
+        self.capacity = capacity
+        self._data: OrderedDict[str, np.ndarray] = OrderedDict()
+        self._lock = Lock()
+
+    def get(self, key: str) -> np.ndarray | None:
+        with self._lock:
+            v = self._data.get(key)
+            if v is not None:
+                self._data.move_to_end(key)
+            return v
+
+    def put(self, key: str, value: np.ndarray) -> None:
+        with self._lock:
+            if key in self._data:
+                self._data.move_to_end(key)
+            else:
+                self._data[key] = value
+                if len(self._data) > self.capacity:
+                    self._data.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._data.clear()
+
+
 class IntentAnchor:
-    """Manages anchor vectors and computes drift."""
+    """Manages anchor vectors and computes drift.
+
+    Caches embeddings via LRU (default capacity 1024) so repeated text inputs
+    don't re-run the embedder. Supports multi-anchor sessions: drift is scored
+    against the best-matching anchor among all the user has expressed.
+    """
 
     def __init__(
         self,
         embedder: Embedder | None = None,
-        threshold_balanced: float = 0.30,
-        threshold_strict: float = 0.45,
+        threshold_balanced: float = 0.22,
+        threshold_strict: float = 0.40,
+        cache_size: int = 1024,
     ) -> None:
         self.embedder: Embedder = embedder or HashingEmbedder()
         self.threshold_balanced = threshold_balanced
         self.threshold_strict = threshold_strict
+        self._cache = _LRUCache(capacity=cache_size)
+
+    def _embed_cached(self, text: str) -> np.ndarray:
+        cached = self._cache.get(text)
+        if cached is not None:
+            return cached
+        vec = self.embedder.embed(text)
+        self._cache.put(text, vec)
+        return vec
 
     def anchor(self, user_request: str) -> AnchorVector:
-        vec = self.embedder.embed(user_request)
+        vec = self._embed_cached(user_request)
         return AnchorVector(text=user_request, vector=vec, model_id=self.embedder.model_id)
+
+    def add_anchor(self, anchor: AnchorVector, additional_text: str) -> None:
+        """Mutate an existing anchor to include a new user-intent text.
+
+        Used by the orchestrator when a user adds a new turn — the proposed
+        action will be scored against the *closest* anchor across the session,
+        which substantially reduces FPs on legitimate multi-step workflows.
+        """
+        if not additional_text or additional_text.strip() == "":
+            return
+        vec = self._embed_cached(additional_text)
+        anchor.add(additional_text, vec)
 
     def drift(
         self,
@@ -176,26 +270,35 @@ class IntentAnchor:
         mode: str = "balanced",
     ) -> DriftScore:
         action_text = action.to_text()
-        action_vec = self.embedder.embed(action_text)
-        sim = cosine(action_vec, anchor.vector)
+        action_vec = self._embed_cached(action_text)
+        # Score against ALL anchors, take the highest similarity. This is the
+        # multi-step drift dampener: as long as the action aligns with any
+        # past user intent, it isn't drift.
+        sims = [cosine(action_vec, v) for v in anchor.all_vectors]
+        sim = max(sims) if sims else 0.0
+        best_idx = sims.index(sim) if sims else 0
+        anchor_text = anchor.texts[best_idx] if anchor.texts else anchor.text
         threshold = self.threshold_strict if mode == "strict" else self.threshold_balanced
         return DriftScore(
             similarity=sim,
             threshold=threshold,
             drifted=sim < threshold,
-            anchor_text=anchor.text,
+            anchor_text=anchor_text,
             action_text=action_text,
         )
 
     def drift_against_text(self, candidate: str, anchor: AnchorVector, mode: str = "balanced") -> DriftScore:
-        cand_vec = self.embedder.embed(candidate)
-        sim = cosine(cand_vec, anchor.vector)
+        cand_vec = self._embed_cached(candidate)
+        sims = [cosine(cand_vec, v) for v in anchor.all_vectors]
+        sim = max(sims) if sims else 0.0
+        best_idx = sims.index(sim) if sims else 0
+        anchor_text = anchor.texts[best_idx] if anchor.texts else anchor.text
         threshold = self.threshold_strict if mode == "strict" else self.threshold_balanced
         return DriftScore(
             similarity=sim,
             threshold=threshold,
             drifted=sim < threshold,
-            anchor_text=anchor.text,
+            anchor_text=anchor_text,
             action_text=candidate,
         )
 

@@ -214,17 +214,19 @@ Embedding inference dominates the added latency. The default local hashing embed
 
 ---
 
-## Security guarantees
+## Security properties
 
-- **All HMAC keys** derived per-session from a master key via HKDF-SHA256.
-- **Decision log** is append-only and hash-chained. `aegis verify <log>` confirms integrity end-to-end.
+These are technical properties of the code, verifiable from source and tests — not legal guarantees:
+
+- **All HMAC keys** are derived per-session from a master key via HKDF-SHA256.
+- **The decision log** is append-only and hash-chained. `aegis verify <log>` confirms integrity end-to-end.
 - **No model API keys** are persisted by AEGIS — they pass through from your app to the upstream provider.
 - **CCPT envelopes are stripped** before content reaches the upstream model.
-- **Canary tokens** are cryptographically random, per-session, and multi-template (resistant to canary-aware attacks).
+- **Canary tokens** are cryptographically random, per-session, and use multiple instruction templates (resistant to single-template-aware attacks).
 - **Capability tokens** are single-use and time-bounded by default.
 - **All cryptographic primitives** use vetted libraries (`cryptography` for Python, `node:crypto` for TS). No custom crypto.
 
-See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for the full threat model.
+See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for the full threat model and disclosure policy.
 
 ---
 

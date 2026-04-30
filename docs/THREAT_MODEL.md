@@ -88,8 +88,8 @@ A single misconfigured policy still leaves multiple independent gates. This is t
 
 ## 8. Known limitations
 
-1. **Causal origin propagation through model paraphrase.** If the model summarizes L0 content into its own response and that response is then re-fed into the next turn's context, the new envelope's level depends on how the application re-tags it. v1 supports explicit `derive_child` for taint propagation; v2 will explore principled taint analysis.
-2. **Streaming responses.** The current decision pipeline operates on full responses. Streaming responses will be supported in v1.x with per-chunk evaluation; until then, streaming is best disabled or buffered.
+1. **Causal origin propagation through model paraphrase.** If the model summarizes L0 content into its own response and that response is then re-fed into the next turn's context, the new envelope's level depends on how the application re-tags it. v1 ships an explicit `derive_child` API for taint propagation; principled taint analysis is an open research direction.
+2. **Streaming responses.** The current decision pipeline operates on full responses. Streaming-aware per-chunk evaluation is not implemented; until/unless it is, streaming is best disabled or buffered upstream of the proxy.
 3. **Model provider wire-format drift.** Providers evolve their APIs. AEGIS adapters track stable surfaces; on breakage, we ship a patch.
 4. **Client SDK telemetry.** AEGIS does not phone home. Decision logs stay local unless you choose to ship them to your SIEM.
 
@@ -97,7 +97,7 @@ A single misconfigured policy still leaves multiple independent gates. This is t
 
 Please report vulnerabilities by opening a **[private GitHub Security Advisory](https://github.com/cwellbournewood/aegis/security/advisories/new)**. Do not file public issues for actively exploitable bugs.
 
-We will acknowledge within 72 hours and aim to ship a fix or mitigation within 14 days.
+This is a community-maintained project; there is no triage or fix-turnaround SLA. Reports are handled on a best-effort basis. If timely vendor support matters to you, fork and self-maintain.
 
 ## 10. Cryptographic primitives
 

@@ -117,9 +117,15 @@ class Orchestrator:
                 session.canaries = CanaryGarden.generate(
                     session_id=session.session_id, count=self.policy.canary.count
                 )
-        if user_intent and session.anchor is None:
-            session.user_intent = user_intent
-            session.anchor = self.anchor.anchor(user_intent)
+        if user_intent:
+            if session.anchor is None:
+                session.user_intent = user_intent
+                session.anchor = self.anchor.anchor(user_intent)
+            else:
+                # Multi-anchor accumulation: each new user-intent expression
+                # widens what counts as "aligned" — reduces drift FPs without
+                # weakening detection of clearly-unrelated actions.
+                self.anchor.add_anchor(session.anchor, user_intent)
         return session
 
     # ---------------------------------------------------------------- pre

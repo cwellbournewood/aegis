@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aegis-guard"
-version = "1.0.0"
+version = "1.1.0"
 description = "Authenticated Execution Gateway for Injection Security — structural prompt-injection defenses for LLM applications"
 readme = "README.md"
 license = { text = "Apache-2.0" }

@@ -2,6 +2,42 @@
 
 All notable changes to AEGIS are documented here. Format adapted from [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning per [SemVer](https://semver.org/).
 
+## [1.1.0] — 2026-04-30
+
+Security hardening, false-positive reduction, and CI maintenance.
+
+### Added
+
+- **Multi-anchor sessions.** Each user turn contributes a new anchor vector; drift is scored against the closest anchor, dramatically reducing FPs on legitimate multi-step tasks (`aegis/anchor.py`).
+- **LRU embedding cache.** Repeated text inputs hit the embedder once per process. Default capacity 1024 entries (`aegis/anchor.py`).
+- **Hash-log tip-pointer.** A sidecar `<log>.tip` file records the latest seq+hash atomically on each append. `aegis verify` cross-checks against it to detect truncation, which a chain alone cannot (`aegis/log.py`).
+- **Canary scan normalization.** Inputs are NFKC-normalized and stripped of zero-width/RTL/soft-hyphen characters before substring matching. Defeats canary-aware splitting attacks. Dict keys are now scanned too.
+- **65 new security tests** across crypto primitives, CCPT tampering, capability attacks, lattice bypass attempts, canary evasion, proxy/API attacks, and log integrity (`tests/security/`).
+- **7 new adversarial corpus cases** covering zero-width canary attacks, RTL-override injection, base64-encoded payloads, homoglyph parameter abuse, stale-system-claim memory poisoning, and additional benign multi-step controls.
+
+### Changed
+
+- **Default intent-drift thresholds** retuned for the hashing embedder: balanced 0.30 → 0.22, strict 0.45 → 0.40. With multi-anchor accumulation, this catches all attacks in the corpus while keeping benign FPs at 0.
+- **CI actions** bumped to Node.js 24 compatible versions: `actions/checkout@v6`, `actions/setup-python@v6`, `actions/setup-node@v6`, `actions/upload-artifact@v7`. TS SDK CI now uses `npm ci` against the committed lockfile.
+- **SECURITY.md and threat model** clarified: this is a community-maintained project with no SLA on triage. Removed time-bound support commitments.
+- **README "Security guarantees"** renamed to "Security properties" — these are technical properties verifiable from source, not legal guarantees.
+
+### Fixed
+
+- Canary scan no longer misses tokens split with zero-width spaces, RTL overrides, or soft hyphens.
+- Hash-log truncation at the tail is now detected via the tip-pointer sidecar.
+- Several stylistic issues flagged by ruff (SIM, RUF) cleaned up.
+
+### Benchmark (default policy, balanced mode, hashing embedder)
+
+| Category | Attack catch rate | Benign false-positive rate |
+|---|---|---|
+| Direct injection (4 cases) | 100% | — |
+| Indirect injection (8 cases) | 100% of attacks; 1 case explicitly marked ALLOW (no constraint set) | — |
+| Memory poisoning (3 cases) | 100% | — |
+| Multi-agent contamination (2 cases) | 100% | — |
+| Benign (4 cases) | — | 0% |
+
 ## [1.0.0] — 2026-04-30
 
 Initial public release.

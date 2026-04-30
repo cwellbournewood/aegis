@@ -8,8 +8,44 @@ the proxy treats it as high-confidence evidence of injection.
 
 from __future__ import annotations
 
+import re
 import secrets
+import unicodedata
 from dataclasses import dataclass
+
+# Characters an attacker (or a careless model) could insert *between* the
+# bytes of a canary token to break a literal substring scan. We strip these
+# before scanning so the canary still surfaces.
+_INVISIBLE_CHARS = (
+    "​"  # ZERO WIDTH SPACE
+    "‌"  # ZERO WIDTH NON-JOINER
+    "‍"  # ZERO WIDTH JOINER
+    "⁠"  # WORD JOINER
+    "﻿"  # ZERO WIDTH NO-BREAK SPACE / BOM
+    "‪"  # LEFT-TO-RIGHT EMBEDDING
+    "‫"  # RIGHT-TO-LEFT EMBEDDING
+    "‬"  # POP DIRECTIONAL FORMATTING
+    "‭"  # LEFT-TO-RIGHT OVERRIDE
+    "‮"  # RIGHT-TO-LEFT OVERRIDE
+    "⁦"  # LEFT-TO-RIGHT ISOLATE
+    "⁧"  # RIGHT-TO-LEFT ISOLATE
+    "⁨"  # FIRST STRONG ISOLATE
+    "⁩"  # POP DIRECTIONAL ISOLATE
+    "­"  # SOFT HYPHEN
+)
+_INVISIBLE_RE = re.compile(f"[{_INVISIBLE_CHARS}]")
+
+
+def _normalize_for_scan(text: str) -> str:
+    """Apply NFKC + invisible-char stripping so attackers can't split canary
+    tokens with zero-width spaces / RTL overrides / soft hyphens / etc."""
+    if not text:
+        return text
+    # NFKC folds compatibility characters (e.g. fullwidth digits → ASCII).
+    folded = unicodedata.normalize("NFKC", text)
+    # Strip invisible / formatting characters that don't carry meaning but
+    # would break a literal substring match.
+    return _INVISIBLE_RE.sub("", folded)
 
 
 @dataclass(frozen=True)
@@ -95,33 +131,55 @@ class CanaryGarden:
     def scan(self, text: str) -> list[CanaryHit]:
         if not text:
             return []
+        normalized = _normalize_for_scan(text)
         hits: list[CanaryHit] = []
         for c in self.canaries:
-            if c.token in text:
-                idx = text.find(c.token)
+            if c.token in normalized:
+                # Excerpt is taken from the *original* text using the normalized
+                # match index — mapping is approximate but adequate for logs.
+                idx = normalized.find(c.token)
                 start = max(0, idx - 40)
-                end = min(len(text), idx + len(c.token) + 40)
-                excerpt = text[start:end]
+                end = min(len(normalized), idx + len(c.token) + 40)
+                excerpt = normalized[start:end]
                 hits.append(CanaryHit(canary=c, location="text", excerpt=excerpt))
         return hits
 
     def scan_structured(self, payload: object, location: str = "") -> list[CanaryHit]:
-        """Recursively scan a structured payload (dict / list / str) for canaries."""
+        """Recursively scan a structured payload (dict / list / str) for canaries.
+
+        Scans both string values *and* string keys — an attacker who could place
+        a canary in a dict key is unusual but possible (e.g. a model that
+        echoes prompt content into JSON keys), so we cover that case too.
+        """
         results: list[CanaryHit] = []
         self._scan_structured(payload, location, results)
         return results
 
     def _scan_structured(self, payload: object, location: str, out: list[CanaryHit]) -> None:
         if isinstance(payload, str):
+            normalized = _normalize_for_scan(payload)
             for c in self.canaries:
-                if c.token in payload:
-                    idx = payload.find(c.token)
+                if c.token in normalized:
+                    idx = normalized.find(c.token)
                     start = max(0, idx - 40)
-                    end = min(len(payload), idx + len(c.token) + 40)
-                    out.append(CanaryHit(canary=c, location=location or "string", excerpt=payload[start:end]))
+                    end = min(len(normalized), idx + len(c.token) + 40)
+                    out.append(CanaryHit(canary=c, location=location or "string", excerpt=normalized[start:end]))
         elif isinstance(payload, dict):
             for k, v in payload.items():
-                self._scan_structured(v, f"{location}.{k}" if location else str(k), out)
+                key_str = str(k)
+                if isinstance(k, str):
+                    # Scan the key itself.
+                    normalized_key = _normalize_for_scan(key_str)
+                    for c in self.canaries:
+                        if c.token in normalized_key:
+                            out.append(
+                                CanaryHit(
+                                    canary=c,
+                                    location=f"{location}.<key>" if location else "<key>",
+                                    excerpt=normalized_key,
+                                )
+                            )
+                self._scan_structured(v, f"{location}.{key_str}" if location else key_str, out)
         elif isinstance(payload, (list, tuple)):
             for i, item in enumerate(payload):
                 self._scan_structured(item, f"{location}[{i}]" if location else f"[{i}]", out)

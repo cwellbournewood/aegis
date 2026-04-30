@@ -99,3 +99,56 @@ def test_proposed_action_to_text():
 def test_proposed_action_uses_summary_when_present():
     a = ProposedAction(tool_name="x", parameters={"y": 1}, summary="meaningful summary")
     assert a.to_text() == "meaningful summary"
+
+
+def test_multi_anchor_takes_max_similarity():
+    """Drift score against multi-anchor uses the closest match."""
+    intent = IntentAnchor()
+    a = intent.anchor("translate this paragraph to French")
+    intent.add_anchor(a, "summarize my latest invoice email")
+    # Action aligned with the SECOND anchor should pass even though the first is unrelated.
+    action = ProposedAction(
+        tool_name="read_email",
+        parameters={"folder": "inbox"},
+        summary="read the latest invoice email from inbox",
+    )
+    score = intent.drift(action, a, mode="balanced")
+    assert not score.drifted, f"sim={score.similarity:.3f} threshold={score.threshold:.3f}"
+    # Anchor text reported should be the matched one, not the original.
+    assert "invoice" in score.anchor_text
+
+
+def test_add_anchor_dedup_on_identical_text():
+    intent = IntentAnchor()
+    a = intent.anchor("X")
+    intent.add_anchor(a, "X")  # duplicate
+    assert len(a.texts) == 1
+
+
+def test_add_anchor_skips_empty_text():
+    intent = IntentAnchor()
+    a = intent.anchor("X")
+    intent.add_anchor(a, "")
+    intent.add_anchor(a, "   ")
+    assert len(a.texts) == 1
+
+
+def test_lru_cache_returns_same_array_for_same_input():
+    """Cached embedding is the same numpy array — no recomputation."""
+    intent = IntentAnchor()
+    v1 = intent._embed_cached("hello world")
+    v2 = intent._embed_cached("hello world")
+    # The cache hands back the same object — fastest possible path.
+    assert v1 is v2
+
+
+def test_lru_cache_evicts_oldest_when_full():
+    intent = IntentAnchor(cache_size=3)
+    intent._embed_cached("a")
+    intent._embed_cached("b")
+    intent._embed_cached("c")
+    intent._embed_cached("d")  # should evict "a"
+    # "a" is no longer in the cache; getting it again should produce a fresh array.
+    fresh_a = intent._embed_cached("a")
+    second_a = intent._embed_cached("a")
+    assert fresh_a is second_a

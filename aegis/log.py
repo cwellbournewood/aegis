@@ -3,10 +3,15 @@
 Each entry's `hash` covers (prev_hash || canonical_entry_bytes), giving a
 tamper-evident chain. A verifier walks the file forward and confirms that no
 entry was modified or removed.
+
+A sidecar `<log>.tip` file mirrors the latest seq+hash. `verify_log` cross-checks
+the file's terminal entry against the tip — catching truncation at the end,
+which a chain alone cannot detect.
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -16,6 +21,35 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 
 GENESIS_HASH = "0" * 64
+
+
+def _tip_path(log_path: str) -> str:
+    return log_path + ".tip"
+
+
+def _read_tip(log_path: str) -> tuple[int, str] | None:
+    """Return (seq, hash) from the tip file, or None if missing/corrupt."""
+    tp = _tip_path(log_path)
+    if not os.path.exists(tp):
+        return None
+    try:
+        with open(tp, encoding="utf-8") as fh:
+            obj = json.loads(fh.read())
+        return int(obj["seq"]), str(obj["hash"])
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def _write_tip(log_path: str, seq: int, digest: str) -> None:
+    tp = _tip_path(log_path)
+    tmp = tp + ".tmp"
+    payload = json.dumps({"seq": seq, "hash": digest}, separators=(",", ":"))
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(payload)
+        fh.flush()
+        with contextlib.suppress(OSError):
+            os.fsync(fh.fileno())
+    os.replace(tmp, tp)
 
 
 @dataclass
@@ -97,6 +131,9 @@ class DecisionLog:
                         )
                         + "\n"
                     )
+                # Update the tip-pointer atomically so verifiers can detect
+                # truncation of the most recent entries.
+                _write_tip(self.path, entry.seq, entry.hash)
         return entry
 
     def tail(self, n: int = 50) -> list[LogEntry]:
@@ -145,10 +182,18 @@ class VerifyResult:
     reason: str = ""
 
 
-def verify_log(path: str) -> VerifyResult:
-    """Walk the file and verify the hash chain end-to-end."""
+def verify_log(path: str, *, check_tip: bool = True) -> VerifyResult:
+    """Walk the file and verify the hash chain end-to-end.
+
+    With check_tip=True (default), also verifies the file's terminal entry
+    against the sidecar `<path>.tip` file — catching truncation that a chain
+    alone cannot detect. Pass check_tip=False to skip when the tip is known
+    to be stale (e.g., during forensics on archived logs).
+    """
     prev_hash = GENESIS_HASH
     n = 0
+    last_seq = 0
+    last_hash = GENESIS_HASH
     for n, entry in enumerate(iter_log(path), start=1):
         expected_seq = n
         if entry.seq != expected_seq:
@@ -169,4 +214,26 @@ def verify_log(path: str) -> VerifyResult:
                 reason="hash mismatch (entry tampered)",
             )
         prev_hash = entry.hash
+        last_seq = entry.seq
+        last_hash = entry.hash
+
+    if check_tip:
+        tip = _read_tip(path)
+        if tip is not None:
+            tip_seq, tip_hash = tip
+            if tip_seq > last_seq:
+                return VerifyResult(
+                    ok=False,
+                    entries_checked=n,
+                    broken_at=last_seq + 1,
+                    reason=f"truncation: tip claims seq={tip_seq} but file ends at seq={last_seq}",
+                )
+            if tip_seq == last_seq and tip_hash != last_hash:
+                return VerifyResult(
+                    ok=False,
+                    entries_checked=n,
+                    broken_at=last_seq,
+                    reason="tip hash mismatch (terminal entry replaced)",
+                )
+
     return VerifyResult(ok=True, entries_checked=n)

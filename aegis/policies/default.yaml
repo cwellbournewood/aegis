@@ -44,9 +44,11 @@ flows:
 anchor:
   # Cosine similarity below threshold triggers drift.
   # Hashing embedder is coarser than transformer embedders, so thresholds
-  # are tuned conservatively (lower = more permissive).
-  threshold_balanced: 0.30
-  threshold_strict: 0.45
+  # are tuned conservatively (lower = more permissive). The orchestrator
+  # accumulates multiple anchors per session (one per user turn) and scores
+  # against the closest, which dampens false positives on multi-step tasks.
+  threshold_balanced: 0.22
+  threshold_strict: 0.40
   refresh: session  # session | turn | explicit
   embedder:
     kind: hashing  # hashing | sentence-transformers

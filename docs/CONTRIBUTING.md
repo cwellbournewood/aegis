@@ -92,7 +92,7 @@ For changes that:
 - Modify the default policy
 - Add or remove trust levels
 
-…open a discussion as `[RFC] <title>` in GitHub Issues *before* opening a PR. Tag the maintainers. RFCs typically sit for 7–14 days for community review.
+…open a discussion as `[RFC] <title>` in GitHub Issues *before* opening a PR. Allow time for community review before merging.
 
 ## Commit messages
 
@@ -112,4 +112,4 @@ path-restriction on filesystem or HTTP tools.
 
 ## Governance
 
-Until v1.5, AEGIS is a single-maintainer project with public RFCs. Post-v1.5 we will move to a two-maintainer model with explicit committers. Contributors who land 3+ non-trivial PRs are invited to commit privileges.
+AEGIS is community-maintained with public RFCs for breaking changes. There is no SLA on PR review. Forks are encouraged.
