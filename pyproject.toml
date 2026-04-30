@@ -67,7 +67,7 @@ test = [
     "anthropic>=0.25",
 ]
 dev = [
-    "ruff>=0.3",
+    "ruff>=0.7",
     "mypy>=1.8",
     "types-PyYAML",
 ]
