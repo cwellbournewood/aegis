@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from aegis.ccpt import Level, Origin
 from aegis.decision import PolicyMode
@@ -42,7 +42,7 @@ def default_corpus_path() -> str:
     return os.path.join(os.path.dirname(__file__), "corpus.json")
 
 
-def load_corpus(path: Optional[str] = None) -> list[Case]:
+def load_corpus(path: str | None = None) -> list[Case]:
     if path is None:
         path = default_corpus_path()
     with open(path, encoding="utf-8") as fh:
@@ -82,7 +82,7 @@ def _build_request(case: Case) -> NormalizedRequest:
     )
 
 
-def _build_response(case: Case, canary_token: Optional[str]) -> NormalizedResponse:
+def _build_response(case: Case, canary_token: str | None) -> NormalizedResponse:
     rd = case.model_response
     text = rd.get("text", "")
     if rd.get("text_uses_canary") and canary_token and "<CANARY>" in text:
@@ -117,7 +117,7 @@ def run_benchmark(cases: list[Case], mode: str = "balanced") -> dict[str, Any]:
         augmented, ctx = orch.pre_flight(req)
 
         mint = case.request.get("mint_capability")
-        capability_token_raw: Optional[str] = None
+        capability_token_raw: str | None = None
         if mint:
             tok = orch.minter.mint(
                 tool=mint["tool"],
