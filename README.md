@@ -1,80 +1,45 @@
 # AEGIS
 
-**Authenticated Execution Gateway for Injection Security**
+**Authenticated Execution Gateway for Injection Security.** Open-source, model-agnostic prompt-injection defense gateway for agentic LLM applications.
 
-Open-source, model-agnostic prompt-injection defense gateway for agentic LLM applications. Apache-2.0.
-
-> **Built for** agents that take consequential tool actions (send email, modify databases, deploy code, post to APIs) and ingest untrusted content (RAG, web fetch, MCP servers).
->
-> **Not built for** pure chatbots, agents that only see content you wrote yourself, or pre-product prototypes. See [WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md) for the 30-second decision rubric.
-
-## Quick links
-
-- **New here?** → [QUICKSTART.md](docs/QUICKSTART.md) — three deployment cases (Anthropic API, Claude Code, other agentic frameworks) with copy-paste code.
-- **Want intuition?** → [MENTAL_MODEL.md](docs/MENTAL_MODEL.md) — every layer explained with analogies (DKIM, ER nurse, drift detector, honeytoken, key-not-permission-slip).
-- **Right fit for me?** → [WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md) — user profiles, infrastructure fit, and explicit "do not use" cases.
-- **What's coming?** → [ROADMAP.md](ROADMAP.md) — prioritized improvement plan.
-
----
+> Pre-1.0 development. APIs and policy schema may change before 1.0. See [WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md) for the 30-second fit check.
 
 ## Why
 
-Prompt injection is the most consequential unsolved problem in production LLM systems. LLMs ingest a single token stream — the boundary between *system instructions*, *user input*, *retrieved documents*, and *tool output* exists only as a convention enforced by the application layer. Every defense built on natural-language filtering can be bypassed by sufficiently creative natural language.
+LLMs ingest a single token stream. The boundary between *system instructions*, *user input*, *retrieved documents*, and *tool output* exists only as a convention enforced by the application layer — never by the model. Defenses built on natural-language filtering can be bypassed by sufficiently creative natural language.
 
-AEGIS abandons content-filtering as the primary mechanism. Instead, it imposes **structure the LLM cannot impose on itself**, treating prompt injection as a *provenance, authorization, and intent-drift* problem — the same lens used to defeat SQL injection, CSRF, and privilege escalation.
+AEGIS imposes structure the LLM cannot impose on itself, treating prompt injection as a *provenance, authorization, and intent-drift* problem — the same lens used to defeat SQL injection, CSRF, and privilege escalation.
 
-## Five composed defense layers
+## Five composed layers
 
 | Layer | What it does |
 |---|---|
-| **CCPT** — Cryptographic Content Provenance Tags | Every context chunk wrapped in an HMAC-signed envelope binding origin and trust level |
+| **CCPT** | Every context chunk wrapped in an HMAC-signed envelope binding origin and trust level |
 | **Trust Lattice** | Bell-LaPadula info-flow rules — L0/L1 content cannot authorize tool calls |
-| **Intent Anchor** | User's original intent embedded once; proposed actions are checked for semantic drift |
-| **Canary Tripwires** | Decoy honeytoken instructions seeded into the system prompt; leakage = high-confidence attack signal |
-| **Capability Tokens** | Tool calls require cryptographic, single-use, parameter-constrained tokens that the model cannot mint |
+| **Intent Anchor** | User's request is embedded; proposed actions are checked for semantic drift |
+| **Canary Tripwires** | Decoy honeytoken instructions in the system prompt; leakage = high-confidence attack |
+| **Capability Tokens** | Tool calls require cryptographic, parameter-constrained tokens the model cannot mint |
 
-A **Decision Engine** combines per-layer ALLOW/WARN/BLOCK votes per a configurable policy (`strict` / `balanced` / `permissive`). Every decision is recorded in a hash-chained, append-only audit log.
+A Decision Engine combines per-layer ALLOW/WARN/BLOCK votes per a configurable policy. Every decision is recorded in a hash-chained, append-only audit log.
 
-## Deploys as a sidecar
+## Sidecar deployment
 
 ```
-┌───────────────┐     ┌────────────────────────┐     ┌─────────────────┐
-│  Application  │────▶│   AEGIS SIDECAR PROXY  │────▶│  LLM API        │
-│  (any lang)   │◀────│   (Python / FastAPI)   │◀────│  Claude/GPT/    │
-└───────┬───────┘     └──────────┬─────────────┘     │  Gemini         │
-        │                        │                   └─────────────────┘
-        ▼                        ▼
-  ┌──────────┐            ┌────────────┐
-  │ AEGIS    │            │  Decision  │
-  │ SDK      │            │  Log (W/A) │
-  │ (Py/TS)  │            └────────────┘
-  └──────────┘
+   Your agent ──▶ AEGIS proxy (5 layers) ──▶ LLM provider
+                       │
+                       ▼
+                 Decision log
 ```
 
-Apps either point their existing OpenAI/Anthropic/Google client at the AEGIS proxy URL, or use the AEGIS SDK for richer features (capability minting, intent declaration).
+Either point your existing OpenAI / Anthropic / Google client at the AEGIS proxy URL, or use the AEGIS SDK for capability minting and intent declaration.
 
----
-
-## Quickstart (60 seconds)
-
-> Full quickstart with three deployment cases (Anthropic API agent, Claude Code, other frameworks) is in [docs/QUICKSTART.md](docs/QUICKSTART.md).
-
-### Run the proxy with Docker
+## Quickstart
 
 ```bash
 docker run -d --name aegis -p 8080:8080 \
   -e AEGIS_MASTER_KEY="$(openssl rand -hex 32)" \
-  ghcr.io/cwellbournewood/aegis:1.2.0
+  ghcr.io/cwellbournewood/aegis:0.9.0
 ```
-
-Or with `docker-compose`:
-
-```bash
-cd deploy
-AEGIS_MASTER_KEY=$(openssl rand -hex 32) docker-compose up -d
-```
-
-### Use it from Python
 
 ```python
 from aegis.sdk import AegisClient
@@ -86,16 +51,12 @@ session = aegis.session.create(
     user_intent="summarize my latest invoice email",
     upstream="anthropic",
 )
-
-# Mint capability tokens for the tools the user has actually authorized.
 session.capabilities.mint(
     "read_email",
-    constraints={"folder": {"kind": "eq", "value": "inbox"}, "limit": {"kind": "max_len", "value": 5}},
+    constraints={"folder": {"kind": "eq", "value": "inbox"}},
 )
 
-# Point the upstream client at the AEGIS proxy URL.
 claude = anthropic.Anthropic(base_url=session.proxy_url, api_key="sk-ant-...")
-
 resp = claude.messages.create(
     model="claude-sonnet-4-5",
     max_tokens=512,
@@ -104,75 +65,51 @@ resp = claude.messages.create(
 )
 ```
 
-When AEGIS blocks a request, the response uses HTTP `451` and includes a structured `aegis.decision` record with the votes from each layer.
+For Claude Code, Cursor, or other MCP-using agents, also wrap your MCP servers:
 
----
+```bash
+claude mcp add github "aegis mcp-wrap --policy strict -- npx @modelcontextprotocol/server-github"
+```
+
+Full deployment cases: [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 ## Install
 
-### Server (proxy)
-
 ```bash
 pip install aegis-guard
-aegis genkey > .aegis-master-key                 # 32-byte hex master key
+aegis genkey > .aegis-master-key
 export AEGIS_MASTER_KEY="$(cat .aegis-master-key)"
 aegis up --port 8080
 ```
 
-For hosted-quality embeddings (recommended):
+For higher-quality drift detection:
 
 ```bash
 pip install 'aegis-guard[embed]'
 ```
 
-### TypeScript SDK
+TypeScript SDK:
 
 ```bash
 npm install @aegis/guard
 ```
 
-```ts
-import { AegisClient, c } from "@aegis/guard";
-
-const aegis = new AegisClient({ baseUrl: "http://localhost:8080" });
-const session = await aegis.createSession({ userIntent: "..." });
-await session.mintCapability("send_email", { constraints: { to: c.eq("alice@x.com") } });
-```
-
----
-
 ## CLI
 
 ```bash
-aegis up                        # start the proxy
-aegis up --policy ./policy.yaml # with a custom policy
-aegis logs --tail 50 --follow   # tail the decision log
-aegis verify ./aegis-decisions.log   # verify hash chain + tip pointer
-aegis policy validate ./policy.yaml
-aegis policy show
-aegis bench                     # run the bundled adversarial corpus
-aegis bench-perf                # run latency / throughput benchmarks
-aegis genkey                    # 32-byte hex master key
-aegis mcp-wrap -- <mcp-cmd>     # wrap an MCP server with AEGIS inspection
+aegis up                         # start the proxy
+aegis status                     # health, version, uptime
+aegis logs tail | show <id> | query --since 1h --decision BLOCK | export
+aegis sessions list | show <id>
+aegis policy validate | show | explain --decision-id <req>
+aegis verify <log-path>          # verify hash chain + tip pointer
+aegis bench                      # adversarial corpus benchmark
+aegis bench-perf                 # latency / throughput
+aegis genkey                     # 32-byte hex master key
+aegis mcp-wrap -- <mcp-cmd>      # wrap an MCP server
 ```
-
-### Wrapping an MCP server (for Claude Code / Cursor / Cline users)
-
-```bash
-# Instead of:
-claude mcp add github "npx @modelcontextprotocol/server-github"
-
-# Wrap it:
-claude mcp add github "aegis mcp-wrap --policy strict -- npx @modelcontextprotocol/server-github"
-```
-
-Now every tool response from that MCP server is canary-scanned, tagged L0, and the wrapper drops a tamper-evident JSON-RPC error into the agent's stream if injection is detected. See [QUICKSTART.md §Case 2](docs/QUICKSTART.md#case-2--claude-code-the-harder-case).
-
----
 
 ## Configuration
-
-A YAML policy controls every layer:
 
 ```yaml
 mode: balanced  # strict | balanced | permissive
@@ -184,8 +121,8 @@ flows:
   - { from: L3, to: tool_call, decision: ALLOW }
 
 anchor:
-  threshold_balanced: 0.30
-  threshold_strict: 0.45
+  threshold_balanced: 0.22
+  threshold_strict: 0.40
   embedder: { kind: hashing, dim: 384 }
 
 canary:
@@ -194,117 +131,90 @@ canary:
 
 capability:
   default_ttl_seconds: 600
-  require_for_levels: [L2, L3]
+  nonce_store: { kind: memory }   # or redis for multi-replica HA
 
 log_path: ./aegis-decisions.log
 ```
 
-See [`aegis/policies/default.yaml`](aegis/policies/default.yaml) for the full annotated default.
-
-### Environment
+Full annotated default: [`aegis/policies/default.yaml`](aegis/policies/default.yaml).
 
 | Variable | Purpose |
 |---|---|
-| `AEGIS_MASTER_KEY` | Hex-encoded 32-byte master key (HKDF root for per-session keys). **Required for production.** |
-| `AEGIS_MASTER_KEY_FILE` | Path to a file containing the master key (alternative to env var). |
-| `AEGIS_POLICY_PATH` | Path to a policy YAML. |
-| `AEGIS_ANTHROPIC_URL` | Override Anthropic upstream URL. |
-| `AEGIS_OPENAI_URL` | Override OpenAI upstream URL. |
-| `AEGIS_GOOGLE_URL` | Override Google upstream URL. |
-| `AEGIS_DRY_RUN=1` | Don't forward upstream — return synthetic responses (testing/demo). |
+| `AEGIS_MASTER_KEY` | Hex-encoded 32-byte master key (HKDF root for per-session keys) |
+| `AEGIS_MASTER_KEY_FILE` | Path to a file containing the master key |
+| `AEGIS_POLICY_PATH` | Path to a policy YAML |
+| `AEGIS_ANTHROPIC_URL` / `AEGIS_OPENAI_URL` / `AEGIS_GOOGLE_URL` | Override upstream URLs |
+| `AEGIS_DRY_RUN=1` | Don't forward upstream — return synthetic responses |
 
----
+## Supported providers
 
-## Supported providers (v1.0)
+| Provider | Wire format |
+|---|---|
+| Anthropic Claude 3.5+ / Claude 4 | Messages API + streaming |
+| OpenAI GPT-4o / GPT-4.1 / GPT-5 | Chat Completions + streaming |
+| Google Gemini 1.5+ / 2.x | `generateContent` |
 
-| Provider | Models | Wire format |
-|---|---|---|
-| Anthropic | Claude 3.5+, Claude 4 family | Messages API |
-| OpenAI | GPT-4o, GPT-4.1, GPT-5 family | Chat Completions, Responses API |
-| Google | Gemini 1.5+, Gemini 2.x | `generateContent` |
-
-Open-weights / local Ollama is scoped for v2.
-
----
+Open-weights / Ollama / vLLM are not yet supported.
 
 ## Performance
 
-| Metric | RFP target | Measured (idle, hashing embedder) |
-|---|---|---|
-| Added p50 latency | < 100 ms | **0.07 ms** (simple) / **0.10 ms** (1 tool call) / **0.25 ms** (4 tool calls) |
-| Added p99 latency | < 250 ms | **0.13 ms** / **0.28 ms** / **0.49 ms** |
-| Throughput (single instance) | > 100 req/s | **>12,000 req/s** |
-| Token overhead (canaries + system block) | < 10% | ~80 tokens / session |
+| Metric | Measured (idle, hashing embedder) |
+|---|---|
+| Added p50 latency | 0.07 ms (simple) / 0.10 ms (1 tool call) / 0.25 ms (4 tool calls) |
+| Added p99 latency | 0.13 ms / 0.28 ms / 0.49 ms |
+| Throughput | >12,000 req/s |
+| Token overhead | ~80 tokens / session |
 
-Numbers from `aegis bench-perf` on a Windows local box. CI-asserted regression tests (`tests/perf/`) run on every commit at 3x slack.
+Numbers from `aegis bench-perf` on a Windows local box. CI-asserted regression tests run on every commit at 3x slack.
 
-Embedding inference dominates added latency in the worst case. The default local hashing embedder is CPU-friendly and zero-install; for higher-quality drift detection install `aegis-guard[embed]` and switch the policy embedder to `sentence-transformers`.
+## Streaming
 
-### Streaming
-
-Modern agentic apps need streaming. AEGIS supports it natively:
-
-```bash
+```
 POST /v1/anthropic/messages/stream
 POST /v1/openai/chat/completions/stream
 ```
 
-Each chunk is canary-scanned as it arrives. A leak triggers an immediate `aegis_blocked` SSE event before the offending chunk is forwarded to the client. End-of-stream runs the full five-layer pipeline as a final pass. Buffer is bounded — a 1-hour stream uses constant memory.
+Each chunk is canary-scanned as it arrives. A leak triggers an immediate `aegis_blocked` SSE event before the offending chunk reaches the client. End-of-stream runs the full pipeline.
 
-### Observability
+## Observability
 
-`GET /metrics` returns Prometheus exposition with:
+`GET /metrics` — Prometheus exposition with request counters by upstream/decision, per-layer vote counts, canary leak counter, capability lifecycle counters, end-to-end and per-gate latency histograms, active sessions and log-entries gauges.
 
-- `aegis_requests_total{upstream,decision}` — total requests labeled by upstream and ALLOW/WARN/BLOCK
-- `aegis_layer_votes_total{layer,verdict}` — per-layer vote counts
-- `aegis_canary_leaks_total` — high-confidence injection signal counter
-- `aegis_capability_consumed_total` / `aegis_capability_rejected_total{reason}` — token lifecycle
-- `aegis_decision_seconds` / `aegis_gate_seconds{gate}` — latency histograms
-- `aegis_active_sessions` / `aegis_log_entries` — gauges
-
----
+`GET /aegis/dashboard` — single-page operator UI: live decision stream, block-rate sparkline, per-layer ALLOW/BLOCK bars, top blocked tools.
 
 ## Security properties
 
-These are technical properties of the code, verifiable from source and tests — not legal guarantees:
+These are technical properties verifiable from source and tests:
 
-- **All HMAC keys** are derived per-session from a master key via HKDF-SHA256.
-- **The decision log** is append-only and hash-chained. `aegis verify <log>` confirms integrity end-to-end.
-- **No model API keys** are persisted by AEGIS — they pass through from your app to the upstream provider.
-- **CCPT envelopes are stripped** before content reaches the upstream model.
-- **Canary tokens** are cryptographically random, per-session, and use multiple instruction templates (resistant to single-template-aware attacks).
-- **Capability tokens** are single-use and time-bounded by default.
-- **All cryptographic primitives** use vetted libraries (`cryptography` for Python, `node:crypto` for TS). No custom crypto.
+- HMAC keys derived per-session from a master key via HKDF-SHA256.
+- Decision log is append-only and hash-chained. `aegis verify <log>` checks integrity end-to-end.
+- Model API keys are not persisted; they pass through to the upstream provider.
+- CCPT envelopes are stripped before content reaches the model.
+- Canary tokens are cryptographically random per-session, with multiple template variants.
+- Capability tokens are single-use and time-bounded by default.
+- All cryptography uses vetted libraries (`cryptography` for Python, `node:crypto` for TS).
 
 See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for the full threat model and disclosure policy.
 
----
+## What AEGIS is not
 
-## What AEGIS is *not*
-
-- **Not a model.** No alignment, no RLHF.
-- **Not a WAF.** Doesn't inspect HTTP outside the LLM API path.
-- **Not a substitute for least-privilege tool design** — it's a complement.
-- **Not zero-FN.** The goal is to dramatically raise attacker cost while keeping false positives manageable. AEGIS does not promise it stops 100% of attacks.
-
----
+- Not a model — no alignment, no RLHF.
+- Not a WAF — only inspects the LLM API path.
+- Not a substitute for least-privilege tool design — it complements it.
+- Not zero false-negative — the goal is to raise attacker cost dramatically while keeping false positives manageable.
 
 ## Documentation
 
-- [**Quickstart**](docs/QUICKSTART.md) — three deployment cases with copy-paste code
-- [**Who should use it**](docs/WHO_SHOULD_USE.md) — fit criteria, decision rubric, "do not use" cases
-- [**Mental model**](docs/MENTAL_MODEL.md) — every layer explained with analogies
-- [**Interfaces**](docs/INTERFACES.md) — five surfaces (end user, SDK, CLI, dashboard, audit log) and what each is tuned for
-- [Architecture](docs/ARCHITECTURE.md) — the decision pipeline and how the layers compose
-- [Threat Model](docs/THREAT_MODEL.md) — what AEGIS defends against, what it doesn't
-- [Operator Guide](docs/OPERATOR.md) — deploying, tuning, and observing
-- [Contributing](docs/CONTRIBUTING.md) — code style, evaluation criteria, RFC process
-- [Roadmap](ROADMAP.md) — prioritized improvement plan
-
----
+- [Quickstart](docs/QUICKSTART.md) — three deployment cases with copy-paste code
+- [Who should use it](docs/WHO_SHOULD_USE.md) — fit criteria and decision rubric
+- [Mental model](docs/MENTAL_MODEL.md) — each layer explained
+- [Interfaces](docs/INTERFACES.md) — end user, SDK, CLI, dashboard, audit log
+- [Architecture](docs/ARCHITECTURE.md) — the decision pipeline
+- [Threat model](docs/THREAT_MODEL.md) — what AEGIS defends against
+- [Operator guide](docs/OPERATOR.md) — deployment, tuning, observability
+- [Contributing](docs/CONTRIBUTING.md) — code style, evaluation criteria
+- [Roadmap](ROADMAP.md) — work toward 1.0
 
 ## License
 
-[Apache-2.0](LICENSE).
-
-Forks, audits, and pull requests welcome. AEGIS does not claim that any single layer is novel in isolation. Its contribution is the **composition** — five mechanisms operating on different attack surfaces, orchestrated by a single auditable decision engine, deployable as one open artifact.
+[Apache-2.0](LICENSE). AEGIS does not claim that any single layer is novel in isolation; the contribution is the composition.

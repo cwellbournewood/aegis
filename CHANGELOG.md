@@ -1,199 +1,60 @@
 # Changelog
 
-All notable changes to AEGIS are documented here. Format adapted from [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning per [SemVer](https://semver.org/).
+Format adapted from [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning per [SemVer](https://semver.org/).
 
-## [1.4.0] — 2026-04-30
+## [0.9.0] — pre-1.0 development
 
-Five interface surfaces — each tuned for its audience.
+Working toward a stable 1.0 release. Treat as beta — APIs and policy schema may change before 1.0.
 
-### Surface 1 — End-user graceful blocking
+### Five composed defense layers
 
-The big behavioral change: tool-call blocks are now **soft**. When AEGIS blocks a tool call, the response is still HTTP 200 with the `tool_use` block rewritten to a structured "denied" message the agent can recover from gracefully (e.g., "I noticed an unusual instruction in that email and didn't act on it; here's the summary instead"). Hard HTTP 451 is reserved for canary leaks and broken envelopes — situations where the model itself appears compromised. End users see no technical detail; A3 adversaries get nothing useful to map.
+- **CCPT** — HMAC-signed content provenance envelopes binding origin and trust level. Stripped before content reaches the model.
+- **Trust Lattice** — Bell-LaPadula info-flow rules. L0 cannot authorize tool calls; L1 warns and requires capability tokens; L2 allows with capability tokens; L3 allows.
+- **Intent Anchor** — embedding-based drift detection. Multi-anchor sessions accumulate one anchor per user turn and score against the closest match. LRU embedding cache.
+- **Canary Tripwires** — per-session randomized decoy tokens with NFKC normalization (defeats zero-width / RTL / soft-hyphen splitting). Multi-template instructions resist canary-aware attacks.
+- **Capability Tokens** — single-use, parameter-constrained, HMAC-signed tokens the model cannot mint. Atomic `verify_and_consume`.
 
-Implementation: [`_is_tool_call_only_block`](aegis/proxy/app.py) and [`_rewrite_response_with_blocked_tool_results`](aegis/proxy/app.py) handle the rewrite per provider format (Anthropic / OpenAI / Google). Tests in [tests/test_soft_block.py](tests/test_soft_block.py).
+### Decision orchestration
 
-### Surface 2 — Typed SDK with `suggested_fix`
+- Sync + async paths. The async path runs gates concurrently via `asyncio.gather`.
+- Three policy modes: `strict`, `balanced` (default), `permissive`.
+- Hash-chained, append-only decision log with sidecar tip pointer (truncation-detectable).
 
-New module [`aegis.sdk.decision`](aegis/sdk/decision.py):
+### Proxy
 
-- `AegisDecision` — frozen dataclass with `votes` (dict of `AegisVote`), `blocked_by`, `warnings`, `score`, `mode`, `reason`. `.pretty()` produces a developer-readable summary.
-- `AegisVote` / `AegisWarning` — typed per-layer data with confidence and metadata.
-- `AegisDecisionBlocked` — exception class with concrete `suggested_fix` strings per blocking layer (e.g., capability layer suggests `session.capabilities.mint("<tool>", constraints={...})`).
-- `attach_decision(response)` — lifts the `aegis` field off any response shape (dict, Pydantic, raw object).
+- FastAPI sidecar with wire-compatible adapters for Anthropic Messages, OpenAI Chat Completions, and Google `generateContent`.
+- Streaming endpoints with per-chunk canary scan and final-pass full-pipeline evaluation.
+- Tool-call blocks return HTTP 200 with the `tool_use` block rewritten to a structured "denied" message the agent can recover from. Hard HTTP 451 reserved for canary leaks and broken envelopes.
+- Self-contained Prometheus `/metrics` endpoint (no `prometheus_client` dependency).
+- `/aegis/dashboard` — single-page operator UI, no external resources.
 
-10 tests in [tests/test_sdk_decision.py](tests/test_sdk_decision.py).
+### SDKs and CLI
 
-### Surface 3 — Operator CLI commands
+- Python SDK with typed `AegisDecision` / `AegisVote` / `AegisWarning` / `AegisDecisionBlocked`. Per-layer `suggested_fix` strings.
+- TypeScript SDK with the same surface.
+- CLI: `up`, `status`, `logs {tail|show|query|export}`, `sessions {list|show}`, `policy {validate|show|explain}`, `verify`, `bench`, `bench-perf`, `genkey`, `mcp-wrap`.
+- `aegis mcp-wrap` — wraps an MCP server's stdio so AEGIS inspects tool responses for canary leaks before they reach the agent.
 
-- `aegis status` — health/version/uptime/counts from a running proxy.
-- `aegis logs` group: `tail`, `show <id>`, `query --decision/upstream/tool/since/limit`, `export`.
-- `aegis sessions` group: `list`, `show <session_id>`.
-- `aegis policy explain --decision-id <req>` — drill-down formatted detail for one decision.
-- The legacy `aegis logs` is now `aegis logs tail`.
+### Distributed deployment
 
-### Surface 4 — Single-page dashboard
+- Pluggable `NonceStore`: `MemoryNonceStore` (default) and `RedisNonceStore` (atomic `SET NX EX`).
+- Helm chart with HPA, ServiceMonitor, non-root securityContext, Secret-sourced master key.
 
-`/aegis/dashboard` serves a self-contained HTML operator dashboard. No external deps (no React, no CDN, auditable on locked-down networks). Live decision stream, block-rate sparkline (last 5 min, SVG-rendered), per-layer ALLOW vs BLOCK bars, top blocked tools. Polls `/aegis/decisions` every second; under 50 KB total.
+### Audit log schema
 
-### Surface 5 — Schema-versioned audit log
+- Versioned `aegis.decision/v1` with `policy_version`, `blocked_by`, optional `user_id` / `tenant_id`, per-vote metadata, redacted parameter keys.
 
-The decision-log payload is now versioned `aegis.decision/v1` with new top-level fields:
+### Tests and benchmarks
 
-- `schema: "aegis.decision/v1"`
-- `policy_version` (the AEGIS version that wrote the entry)
-- `blocked_by` (aggregated array of layers that voted BLOCK)
-- `user_id` / `tenant_id` (optional, populated from `Session.metadata` for SIEM filtering)
-- `params_redacted` (renamed from `parameters_redacted`)
-- Per-vote `metadata` is now persisted in addition to verdict/reason/confidence.
+- 277 tests across unit, security-attack, adversarial corpus, performance, MCP wrapper, streaming, metrics.
+- Default policy benchmark on the bundled adversarial corpus (21 cases): 100% catch on all attack categories, 0% false positives on benign cases.
+- Idle proxy latency: p50 0.07 ms, p99 0.13 ms. Throughput >12,000 req/s on simple workload.
 
-Backwards-compatible: existing logs continue to verify; new fields are additive.
+### Known limitations going into 1.0
 
-### Documentation
+- Default hashing embedder is coarser than transformer options. Calibrated `sentence-transformers` defaults are pending.
+- No automatic taint propagation through model paraphrase. `derive_child` is the explicit API; principled taint analysis is open work.
+- Streaming is supported for Anthropic and OpenAI Chat Completions. Google streaming and the OpenAI Responses API are pending.
+- Adversarial corpus is hand-curated. Public benchmark integration (LLM-PI-Bench, OWASP samples) is pending.
 
-[docs/INTERFACES.md](docs/INTERFACES.md) maps all five surfaces to the specific code, endpoints, and contracts in the repo.
-
-### Tests
-
-277 passing (was 261). +16 new across:
-- 10 typed SDK decision tests
-- 3 soft-block end-to-end tests (Anthropic + OpenAI graceful, canary leak still hard-blocks)
-- 3 dashboard tests (HTML response, no external resources, size budget)
-
-## [1.3.0] — 2026-04-30
-
-Onboarding, fit clarity, and Claude Code / MCP integration.
-
-### Added
-
-- **`aegis mcp-wrap` subcommand** — wraps any MCP server's stdio transport so AEGIS inspects tool responses for canary leaks, optionally annotates them as L0, and replaces leaking responses with structured JSON-RPC errors *before they reach the agent*. Drop-in for Claude Code / Cursor / Cline users running third-party MCP servers. ~250 lines of self-contained code, no MCP SDK dependency.
-- **[docs/QUICKSTART.md](docs/QUICKSTART.md)** — three deployment cases with copy-paste code: Anthropic API agent (clean case), Claude Code (Path A: ANTHROPIC_BASE_URL; Path B: aegis mcp-wrap), other agentic frameworks (LangGraph, CrewAI, AutoGen).
-- **[docs/WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md)** — explicit fit criteria with 30-second decision rubric, five user profiles, infrastructure fit, and "do not use" cases. Targeting honestly increases adoption among the right users.
-- **[docs/MENTAL_MODEL.md](docs/MENTAL_MODEL.md)** — every layer explained with analogies (CCPT = DKIM for prompt context, Lattice = ER nurse vs. surgeon, Drift = self-driving-car heading detector, Canaries = marked $20 in the till, Capability tokens = key not permission slip).
-- **[ROADMAP.md](ROADMAP.md)** — prioritized improvement plan with explicit lenses (real attack surface gap > production blocker > defense-in-depth depth) and concrete deliverables per item.
-
-### Changed
-
-- README restructured: prominent "Quick links" block at top pointing to QUICKSTART / WHO_SHOULD_USE / MENTAL_MODEL / ROADMAP. Built-for / not-built-for framing in the lede.
-
-### Tests
-
-261 passing (was 252). +9 covering the MCP wrapper (clean passthrough, canary leak in tool response, nested-result detection, zero-width split, unparseable input, label_l0 toggle, toolResult variant, metrics counter increment).
-
-## [1.2.0] — 2026-04-30
-
-Production hardening: streaming, async, observability, distributed deployments.
-
-### Added
-
-- **Streaming response support.** New endpoints `/v1/anthropic/messages/stream` and `/v1/openai/chat/completions/stream` evaluate per-chunk: each text chunk and tool-call delta is canary-scanned as it arrives and a leak triggers immediate `aegis_blocked` SSE before the offending bytes reach the client. End-of-stream runs the full pipeline. Buffer is bounded — long streams use constant memory.
-- **Async orchestrator with parallel gate execution.** `Orchestrator.post_flight_async` runs canary + per-tool-call lattice / drift / capability gates concurrently via `asyncio.gather`. The FastAPI proxy uses this path by default.
-- **Self-contained Prometheus /metrics endpoint.** No `prometheus_client` dependency. Exposes counters (`aegis_requests_total`, `aegis_layer_votes_total`, `aegis_canary_leaks_total`, `aegis_capability_consumed_total`, `aegis_capability_rejected_total{reason}`), gauges (`aegis_active_sessions`, `aegis_log_entries`), and histograms (`aegis_decision_seconds`, `aegis_gate_seconds{gate}`).
-- **Pluggable NonceStore.** `MemoryNonceStore` (default, single-replica) and `RedisNonceStore` (atomic `SET NX EX`, install via `pip install 'aegis-guard[redis]'`). New atomic `CapabilityMinter.verify_and_consume` collapses verify + mark-used into one operation, eliminating the check-then-set race for hot tokens.
-- **Performance benchmark suite** at `tests/perf/` with CI-asserted p50/p99 targets and a new `aegis bench-perf` CLI subcommand for ad-hoc benchmarking.
-- **Helm ServiceMonitor template** for Prometheus Operator deployments.
-
-### Measured performance (Windows local box, hashing embedder)
-
-| Workload | p50 | p90 | p99 | Throughput |
-|---|---|---|---|---|
-| Simple text | 0.07 ms | 0.08 ms | 0.13 ms | >12,000 req/s |
-| 1 tool call (sync) | 0.10 ms | 0.13 ms | 0.28 ms | — |
-| 4 tool calls (sync) | 0.25 ms | 0.29 ms | 0.49 ms | — |
-| 4 tool calls (async) | 1.09 ms | 1.53 ms | 13.86 ms | — |
-| 50-message context | 0.69 ms | 0.79 ms | 0.96 ms | — |
-
-vs. RFP target of < 100 ms p50 / < 250 ms p99 / > 100 req/s. CI runs the same suite at 3x slack to absorb runner noise.
-
-### Changed
-
-- `CapabilityMinter` is now nonce-store aware. The legacy `consume()` method still works for backwards compatibility but new code should use `verify_and_consume()` for atomicity under concurrency.
-- Default policy YAML surfaces the new `capability.nonce_store` block.
-- Architecture and Operator docs updated with sections on streaming, async, distributed deployments, and Prometheus integration.
-
-### Tests
-
-252 tests passing (was 216):
-
-- **+15 streaming**: per-chunk canary scan, final-pass full pipeline, bounded buffer, zero-width split coverage, SSE endpoint smoke
-- **+13 nonce store**: memory atomicity (50-thread stress), expired-nonce remarking, sweep, Redis config plumbing, atomic verify-and-consume concurrent uniqueness
-- **+8 metrics**: Prometheus exposition format, per-layer / per-gate population, canary leak counter, capability consumed/rejected separation, histogram populating
-- **+6 perf**: latency budgets across simple/tool/large workloads + throughput floor
-
-## [1.1.0] — 2026-04-30
-
-Security hardening, false-positive reduction, and CI maintenance.
-
-### Added
-
-- **Multi-anchor sessions.** Each user turn contributes a new anchor vector; drift is scored against the closest anchor, dramatically reducing FPs on legitimate multi-step tasks (`aegis/anchor.py`).
-- **LRU embedding cache.** Repeated text inputs hit the embedder once per process. Default capacity 1024 entries (`aegis/anchor.py`).
-- **Hash-log tip-pointer.** A sidecar `<log>.tip` file records the latest seq+hash atomically on each append. `aegis verify` cross-checks against it to detect truncation, which a chain alone cannot (`aegis/log.py`).
-- **Canary scan normalization.** Inputs are NFKC-normalized and stripped of zero-width/RTL/soft-hyphen characters before substring matching. Defeats canary-aware splitting attacks. Dict keys are now scanned too.
-- **65 new security tests** across crypto primitives, CCPT tampering, capability attacks, lattice bypass attempts, canary evasion, proxy/API attacks, and log integrity (`tests/security/`).
-- **7 new adversarial corpus cases** covering zero-width canary attacks, RTL-override injection, base64-encoded payloads, homoglyph parameter abuse, stale-system-claim memory poisoning, and additional benign multi-step controls.
-
-### Changed
-
-- **Default intent-drift thresholds** retuned for the hashing embedder: balanced 0.30 → 0.22, strict 0.45 → 0.40. With multi-anchor accumulation, this catches all attacks in the corpus while keeping benign FPs at 0.
-- **CI actions** bumped to Node.js 24 compatible versions: `actions/checkout@v6`, `actions/setup-python@v6`, `actions/setup-node@v6`, `actions/upload-artifact@v7`. TS SDK CI now uses `npm ci` against the committed lockfile.
-- **SECURITY.md and threat model** clarified: this is a community-maintained project with no SLA on triage. Removed time-bound support commitments.
-- **README "Security guarantees"** renamed to "Security properties" — these are technical properties verifiable from source, not legal guarantees.
-
-### Fixed
-
-- Canary scan no longer misses tokens split with zero-width spaces, RTL overrides, or soft hyphens.
-- Hash-log truncation at the tail is now detected via the tip-pointer sidecar.
-- Several stylistic issues flagged by ruff (SIM, RUF) cleaned up.
-
-### Benchmark (default policy, balanced mode, hashing embedder)
-
-| Category | Attack catch rate | Benign false-positive rate |
-|---|---|---|
-| Direct injection (4 cases) | 100% | — |
-| Indirect injection (8 cases) | 100% of attacks; 1 case explicitly marked ALLOW (no constraint set) | — |
-| Memory poisoning (3 cases) | 100% | — |
-| Multi-agent contamination (2 cases) | 100% | — |
-| Benign (4 cases) | — | 0% |
-
-## [1.0.0] — 2026-04-30
-
-Initial public release.
-
-### Added
-
-- **CCPT layer** (`aegis/ccpt.py`) — HMAC-signed content provenance envelopes binding origin and trust level. Tamper-evident across the proxy pipeline. Stripped before content reaches the upstream model.
-- **Trust Lattice layer** (`aegis/lattice.py`) — Bell-LaPadula-style declarative flow rules. Default policy: L0 cannot authorize tool calls; L1 warns; L2 requires capability token; L3 allows.
-- **Intent Anchor layer** (`aegis/anchor.py`) — embedding-based drift detection. Default `HashingEmbedder` (zero-install, deterministic). Optional `SentenceTransformerEmbedder` via `aegis-guard[embed]`.
-- **Canary Tripwire layer** (`aegis/canary.py`) — per-session randomized decoy tokens with three distinct trigger templates. Recursive structured-payload scanning catches leaks in tool-call parameters.
-- **Capability Token layer** (`aegis/capability.py`) — single-use, parameter-constrained, HMAC-signed `aegis_cap.v1.<base64>.<sig>` tokens. Constraint primitives: `eq`, `in`, `regex`, `prefix`, `max_len`, `any`.
-- **Decision Engine** (`aegis/decision.py`) — strict / balanced / permissive vote combiners. Weighted score across all layer votes.
-- **Hash-chained Decision Log** (`aegis/log.py`) — append-only JSONL with SHA256 chain. `aegis verify` walks the chain end-to-end.
-- **Provider adapters** (`aegis/proxy/adapters.py`) — Anthropic Messages, OpenAI Chat Completions, Google Gemini `generateContent`.
-- **FastAPI proxy** (`aegis/proxy/app.py`) — upstream-compatible routes plus `/aegis/{health,session,capability,decisions}` endpoints.
-- **CLI** (`aegis/cli.py`) — `up`, `logs`, `verify`, `policy {validate,show}`, `bench`, `genkey`.
-- **Python SDK** (`aegis/sdk/`) — synchronous client with session and capability namespaces.
-- **TypeScript SDK** (`sdk-ts/`) — node 18+ idiomatic client.
-- **Adversarial corpus** (`tests/adversarial/corpus.json`) — 14 cases across direct, indirect, memory, multi-agent, and benign categories.
-- **Docker image, Docker Compose, Helm chart** with non-root `securityContext`, HPA, Secret-sourced master key.
-- **Threat model, architecture, operator, and contributing docs** under `docs/`.
-
-### Performance
-
-- Default-config p50 added latency under measured CI: well under the 100ms target.
-- Token overhead per session (canaries + integrity directives): ~80 tokens.
-- Idle proxy memory footprint: <300MB.
-
-### Security
-
-- All HMAC keys derived per-session from a master key via HKDF-SHA256.
-- All cryptographic primitives use vetted libraries (`cryptography`, `hmac`, `secrets`). No custom crypto.
-- Hash-chained audit log; tamper-evident via `aegis verify`.
-
-### Out of scope (deferred to v2)
-
-- Open-weights / local Ollama upstream support.
-- Streaming response per-chunk evaluation.
-- Cross-agent / cross-session lattice extensions.
-- Principled taint propagation for model-paraphrased content.
-
-[1.0.0]: https://github.com/cwellbournewood/aegis/releases/tag/v1.0.0
+See [ROADMAP.md](ROADMAP.md) for the remaining work.

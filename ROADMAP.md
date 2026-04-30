@@ -1,162 +1,118 @@
-# AEGIS Roadmap
+# Roadmap
 
-How AEGIS continues to optimize and improve. This document is a living plan — open an issue or RFC to push items up or down.
+Open an issue or RFC to push items up or down.
 
-## Current state (v1.2.0)
+## Current state (0.9.0, pre-1.0)
 
-- Five composed defense layers (CCPT, Trust Lattice, Intent Anchor, Canary Tripwires, Capability Tokens) with a vote-combining Decision Engine.
+- Five composed defense layers: CCPT, Trust Lattice, Intent Anchor, Canary Tripwires, Capability Tokens.
+- Decision Engine with strict / balanced / permissive modes.
 - Sync + async orchestrator with parallel gate execution.
-- FastAPI proxy with Anthropic / OpenAI / Google adapters.
-- Streaming endpoints with per-chunk canary scan + final-pass full pipeline.
-- Prometheus `/metrics` (self-contained — no `prometheus_client` dep).
-- Pluggable nonce store with Memory + Redis backends; atomic `verify_and_consume`.
-- Hash-chained, append-only decision log with sidecar tip pointer (truncation-detectable).
-- MCP server wrapper (`aegis mcp-wrap`) for Claude Code / Cursor / Cline integrations.
-- 261 tests across unit, security-attack, adversarial corpus, performance, MCP wrapper.
-- Helm chart with HPA + ServiceMonitor templates.
+- FastAPI proxy with adapters for Anthropic, OpenAI, Google. Streaming endpoints with per-chunk canary scan.
+- Prometheus `/metrics` and operator dashboard at `/aegis/dashboard`.
+- Pluggable nonce store with Memory + Redis backends.
+- Hash-chained, append-only decision log with sidecar tip pointer.
+- MCP server wrapper (`aegis mcp-wrap`) for Claude Code / Cursor / Cline.
+- 277 tests; bundled adversarial corpus runs in CI.
 
-Measured idle p50: 0.07 ms; idle throughput: >12,000 req/s. ~750x under the RFP's 100 ms target.
+Idle p50: 0.07 ms. Idle throughput: >12,000 req/s.
 
 ---
 
-## How we prioritize
+## Required for 1.0
 
-Three lenses, applied in order:
+These need to land before AEGIS calls itself stable:
 
-1. **Real attack surface that AEGIS doesn't cover.** Anything that lets an adversary succeed where AEGIS users expected protection.
-2. **Production blockers for the ideal user profiles** ([WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md)). Streaming was the headliner here — closed in v1.2.0.
-3. **Defense-in-depth depth.** Adding a sixth layer is rarely the right move; deepening an existing one usually is.
+### Public adversarial corpora
 
-Items below are tagged with the lens they answer to.
+The bundled corpus is hand-curated (21 cases). 1.0 requires public-benchmark integration:
 
----
+- LLM-PI-Bench
+- OWASP LLM01 sample sets
+- Lakera Gandalf-derived public corpora
 
-## Near-term (next 1-2 minor releases)
+Deliverable: `aegis bench --corpus llmpibench` runs an external corpus. CI runs against a reproducible snapshot. Published baseline numbers per release.
 
-### Adversarial robustness benchmarks against public corpora — *attack surface*
+### Calibrated `sentence-transformers` defaults
 
-Currently the bundled corpus is hand-curated (21 cases, 100% catch / 0% FP). Real production confidence needs the public benchmarks too.
+Today the default thresholds are calibrated for the hashing embedder. For higher-quality drift detection users install the `embed` extra, but thresholds aren't retuned.
 
-- [LLM-PI-Bench](https://github.com/protectai/llm-guard) — 1,000+ injection prompts across categories.
-- [Lakera Gandalf](https://gandalf.lakera.ai) public dump — paraphrased + adaptive attacks.
-- OWASP LLM01 sample sets.
+Deliverable: policy `anchor.embedder.kind: sentence-transformers` works with retuned defaults verified by the corpus. Operator guide includes a side-by-side comparison.
 
-**Concrete deliverable:** `aegis bench --corpus llmpibench` runs an external corpus. CI runs against a reproducible snapshot weekly. Publish baseline numbers + diff vs. prior version.
+### Streaming parity
 
-### Per-tool-class drift profiles — *false-positive reduction*
+Currently supports Anthropic SSE and OpenAI Chat Completions SSE. Need parsers for the OpenAI Responses API and Google's streaming format.
 
-Today the intent-drift threshold is global. In practice, "search" tools have wider acceptable drift than "send_email" tools. A per-tool-class profile would let us tighten where it matters and loosen where it doesn't.
+Deliverable: `parse_openai_responses_sse` and `parse_google_sse` in `aegis/proxy/streaming.py`. Endpoint coverage parity.
 
-**Concrete deliverable:** policy syntax for `tool_drift_profiles: { send_email: { threshold: 0.40 }, web_search: { threshold: 0.10 } }`. Drift gate consults the profile per-call.
+### Per-tool-class drift profiles
 
-### Multimodal injection coverage — *attack surface*
+Today the intent-drift threshold is global. In practice "search" tools have wider acceptable drift than "send_email" tools.
 
-2026 attack surface includes image-embedded prompts (steganographic instructions in icons, screenshots that contain hidden text), audio prompts in agent voice flows, and structured-output injection (JSON schemas with malicious string fields).
+Deliverable: policy syntax `tool_drift_profiles: { send_email: { threshold: 0.40 }, web_search: { threshold: 0.10 } }`.
 
-**Concrete deliverable:** image-prompt detector that runs OCR + canary scan on inbound image content. Vision-model adapter that tags image content as L0 by default.
+### Stability of the public schema
 
-### Hosted embedder integration with sentence-transformers benchmark — *quality*
-
-The `embed` extra exists but the default thresholds are calibrated for the hashing embedder. Need calibrated defaults for `all-MiniLM-L6-v2` and a published comparison.
-
-**Concrete deliverable:** policy `anchor.embedder.kind: sentence-transformers` works with retuned thresholds (verified by the bench corpus). Operator guide includes a side-by-side comparison.
-
-### OpenTelemetry tracing — *observability*
-
-Prometheus `/metrics` is shipping. Distributed tracing is the other half — operators want to see a single request trace from agent → AEGIS gates → upstream LLM → tool execution.
-
-**Concrete deliverable:** opt-in `OTEL_EXPORTER_OTLP_ENDPOINT` integration. Each layer evaluation emits a span. Compatible with Datadog, Honeycomb, Jaeger.
+The audit log is `aegis.decision/v1`. Capability token format is `aegis_cap.v1`. CCPT envelope is `ccpt1`. Lock these for 1.0; future schema changes bump the version.
 
 ---
 
-## Medium-term (next 3-6 months)
+## Post-1.0
 
-### Taint propagation through model paraphrase — *attack surface*
+### Multimodal injection coverage
 
-When the model summarizes L0 content into its own response and that response is fed back as context, naive provenance tracking loses the L0 taint. v1 ships an explicit `derive_child` API; what we need is heuristic *automatic* taint propagation:
+Image-embedded prompts (steganographic instructions in icons, screenshots that contain hidden text), audio prompts in voice flows, structured-output injection (JSON schemas with malicious string fields).
 
-- N-gram overlap between model output and prior L0 content → high taint score.
-- Embedding similarity between model output and prior L0 content → second-order signal.
-- Operator-tunable threshold for promoting "tainted" output back to L0 in the next turn.
+Deliverable: image-prompt detector that runs OCR + canary scan on inbound image content. Vision-model adapter that tags image content as L0 by default.
 
-**Concrete deliverable:** `aegis.taint` module + orchestrator hook. New `taint_score` vote in the decision engine.
+### Taint propagation through model paraphrase
 
-### Distributed session store backend — *deployment*
+When the model summarizes L0 content into its own response and that response is fed back as context, naive provenance tracking loses the L0 taint. v0.x supports explicit `derive_child`. Automatic taint propagation needs heuristic signals (n-gram overlap, embedding similarity to prior L0 content).
+
+Deliverable: `aegis.taint` module + orchestrator hook. New `taint_score` vote in the decision engine.
+
+### Distributed session store
 
 Sessions are currently per-replica (only nonces are distributed). For session affinity without sticky routing, allow Redis-backed sessions.
 
-**Concrete deliverable:** `SessionStore` protocol + Redis implementation with the same atomicity properties as `RedisNonceStore`.
+Deliverable: `SessionStore` protocol + Redis implementation.
 
-### Expanded provider coverage — *deployment*
+### Expanded provider coverage
 
-v1.2 supports Anthropic / OpenAI / Google. Real production fleets also use Azure OpenAI, AWS Bedrock, local Ollama / vLLM.
+Azure OpenAI, AWS Bedrock, local Ollama / vLLM.
 
-**Concrete deliverable:** `AzureOpenAIAdapter`, `BedrockAdapter`, `OllamaAdapter` in `aegis/proxy/adapters.py`. CI smoke tests for each.
+### OpenTelemetry tracing
 
-### Native streaming for OpenAI Responses API + Google `generateContent` — *deployment*
+Each layer evaluation emits a span. Compatible with Datadog, Honeycomb, Jaeger.
 
-The streaming evaluator currently has parsers for Anthropic SSE and OpenAI Chat Completions SSE. Need native parsers for the newer Responses API and Google's streaming format.
+### Schema enforcement complement to capability tokens
 
-**Concrete deliverable:** `parse_openai_responses_sse`, `parse_google_sse` in `aegis/proxy/streaming.py`. Endpoint coverage parity.
+Capability tokens enforce intent binding. JSON Schema enforcement enforces shape binding. Together they prevent both unauthorized tools and well-named-but-malformed parameters.
 
-### Schema enforcement complement to capability tokens — *defense depth*
+Deliverable: new `ConstraintKind.SCHEMA` that takes a JSON Schema and validates tool parameters.
 
-Capability tokens enforce *intent* binding. JSON Schema enforcement enforces *shape* binding. Together they prevent both unauthorized tools AND well-named-but-malformed parameters.
+### Native-language port for serverless / embedded
 
-**Concrete deliverable:** new `ConstraintKind.SCHEMA` that takes a JSON Schema and validates tool parameters against it.
+Python startup time precludes serverless cold-paths. A native-language reimplementation of the hot path (CCPT verify, lattice, capability verify) with a Python orchestrator on top would address this. Significant rewrite; gated on demand.
 
----
+### Adversarial-robustness improvements to the embedding layer
 
-## Longer-term / research
+Adversarial perturbation of embeddings defeats the intent anchor. Active research area. Possible approaches: multi-embedder voting, contrastive fine-tuning of an injection-aware embedder on adversarial examples, token-overlap fallback when cosine similarity is suspiciously high.
 
-### C++/Rust core for serverless and embedded — *deployment*
+### Cross-agent provenance
 
-Python startup time (~1-2s) precludes serverless cold-paths. A native-language reimplementation of the hot path (CCPT verify, lattice, capability verify) with a Python orchestrator on top would address this.
+When agent A calls agent B, B's outputs become A's tool results. Federated CCPT envelopes signed with a federation key shared by collaborating proxies.
 
-This is a significant rewrite and will only happen if there's clear demand.
+### Formal verification of the lattice gate
 
-### Adversarial-robustness improvements to the embedding layer — *attack surface*
-
-Adversarial perturbation of embeddings (adding character noise to make a malicious request embed-similar to a benign one) defeats the intent anchor. Active research area; potential approaches:
-
-- Multi-embedder voting (sentence-transformers + word2vec + character n-gram).
-- Contrastive fine-tuning of an injection-aware embedder on adversarial examples.
-- Token-overlap fallback when cosine similarity is suspiciously high.
-
-### Cross-agent provenance for multi-agent systems — *attack surface*
-
-When agent A calls agent B, B's outputs become A's tool results. AEGIS needs to track provenance across agent boundaries — not just within one session.
-
-**Concept:** federated CCPT envelopes. Cross-agent envelopes signed with a federation key shared by collaborating proxies.
-
-### Formal verification of the lattice gate — *defense depth*
-
-The Bell-LaPadula non-interference proof is well-understood. Restating it formally for AEGIS's specific lattice rules (in TLA+ or Coq) would make AEGIS one of the few LLM security tools with a machine-checkable correctness argument.
+Bell-LaPadula non-interference is well-understood. Restating it formally for AEGIS's specific lattice rules (in TLA+ or Coq) would make AEGIS one of the few LLM security tools with a machine-checkable correctness argument.
 
 ---
 
-## Continuous improvement (every release)
+## Continuous improvement
 
-These run on every minor release, not as separate roadmap items:
+Run on every release:
 
-- **Bench corpus expansion.** Add 2–5 new attack cases per release based on real CVEs and reported injection techniques.
-- **Performance regression guard.** CI asserts p50/p99 budgets at 3x slack. Any merge that pushes us over fails CI.
-- **Dependency hygiene.** Pinned in `pyproject.toml`; upgraded with intention, not blanket dependabot accepts.
-- **Threat model refresh.** Document any new known limitations as they're discovered.
-- **Adversarial test sweep.** Run the corpus across all three providers' wire formats every release.
-
----
-
-## Want to contribute?
-
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md). The evaluation criteria from the original RFP still apply:
-
-| Criterion | Weight |
-|---|---|
-| Demonstrably reduces attack success on the adversarial corpus | 30% |
-| Stays within performance budget | 20% |
-| Code quality, test coverage, documentation | 20% |
-| Composes cleanly with existing layers | 15% |
-| Operator ergonomics | 15% |
-
-Bonus: contributions that **expand the adversarial corpus** with novel attacks are highly valued. AEGIS only gets harder to defeat as more adversarial cases land in the corpus.
+- **Bench corpus expansion.** 2–5 new attack cases per release based on real CVEs and reported injection techniques.
+- **Performance regression guard.** CI asserts p50/p99 budgets at 3x slack.
+- **Dependency hygiene.** Pinned in `pyproject.toml`; upgraded with intention.
+- **Threat model refresh.** Document new known limitations as they're discovered.

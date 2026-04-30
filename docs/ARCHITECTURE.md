@@ -246,7 +246,7 @@ Sessions, the decision log tail, and the LRU embedding cache are per-replica by 
 
 ## 15. Open research questions
 
-These are honestly-flagged unknowns:
+Open work — see [ROADMAP.md](../ROADMAP.md) for priority and status:
 
 1. **Intent Anchor false-positive rate on legitimate multi-step tasks.** Open agentic workflows legitimately drift. Mitigation: per-step re-anchoring, task decomposition hooks.
 2. **Canary attrition.** As AEGIS becomes known, attackers will craft canary-aware injections. Mitigation: per-session randomization, multiple canary phrasings, treat as one signal.

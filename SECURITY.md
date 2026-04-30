@@ -6,7 +6,7 @@ Please **do not** file public GitHub issues for security vulnerabilities.
 
 Instead, open a **[private GitHub Security Advisory](https://github.com/cwellbournewood/aegis/security/advisories/new)** on this repository.
 
-This is a community-maintained project. There is no SLA on triage or fix turnaround — reports are handled on a best-effort basis. If timely vendor support is critical for your use case, fork the repository and run your own audit/maintenance cadence.
+Reports are handled on a best-effort basis. There is no SLA on triage or fix turnaround.
 
 ## Scope
 

@@ -1,32 +1,27 @@
-# Contributing to AEGIS
-
-AEGIS welcomes contributions. This document covers what we look for, the evaluation criteria from the RFP, and how to land a change.
+# Contributing
 
 ## Ground rules
 
-- AEGIS is **defense-in-depth**. New features should not weaken the property that any single layer's failure is recoverable.
-- AEGIS is **model-agnostic**. Anything provider-specific lives behind the adapter interface.
-- AEGIS is **forkable**. No proprietary dependencies, vetted crypto, exhaustive tests.
-- AEGIS is **honest about limits**. Document what your contribution does *and what it doesn't*.
+- **Defense in depth.** New features must not weaken the property that any single layer's failure is recoverable.
+- **Model-agnostic.** Provider-specific code lives behind the adapter interface.
+- **Forkable.** No proprietary dependencies, vetted crypto, exhaustive tests.
 
-## Evaluation criteria for PRs
-
-Lifted directly from the RFP:
+## PR evaluation
 
 | Criterion | Weight |
 |---|---|
 | Demonstrably reduces attack success on the adversarial corpus | 30% |
 | Stays within performance budget (<150 ms p50, <15% token overhead) | 20% |
 | Code quality, test coverage, documentation | 20% |
-| Composes cleanly with existing layers (no tight coupling) | 15% |
-| Operator ergonomics (deployment, debuggability, observability) | 15% |
+| Composes cleanly with existing layers | 15% |
+| Operator ergonomics | 15% |
 
-Bonus: contributions that *expand the adversarial corpus* with novel attacks are highly valued.
+Contributions that expand the adversarial corpus with novel attacks are especially valued.
 
 ## Local development
 
 ```bash
-git clone https://github.com/aegis-guard/aegis
+git clone https://github.com/cwellbournewood/aegis
 cd aegis
 python -m venv .venv && source .venv/bin/activate     # or .venv\Scripts\activate on Windows
 pip install -e '.[test,dev]'
@@ -55,7 +50,7 @@ ruff format .
 mypy aegis
 ```
 
-We don't ship without `pytest -q` green and `ruff check .` clean.
+`pytest -q` green and `ruff check .` clean are required to merge.
 
 ## Tests
 
@@ -106,10 +101,10 @@ parameter values to start with a specific prefix. Useful for
 path-restriction on filesystem or HTTP tools.
 ```
 
-## Reporting security issues
+## Security issues
 
-**Do not file public issues for security bugs.** See [THREAT_MODEL.md §9](THREAT_MODEL.md).
+Do not file public issues for security bugs. See [SECURITY.md](../SECURITY.md).
 
 ## Governance
 
-AEGIS is community-maintained with public RFCs for breaking changes. There is no SLA on PR review. Forks are encouraged.
+Community-maintained with public RFCs for breaking changes. No SLA on PR review.

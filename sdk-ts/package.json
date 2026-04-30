@@ -1,6 +1,6 @@
 {
   "name": "@aegis/guard",
-  "version": "1.4.0",
+  "version": "0.9.0",
   "description": "AEGIS — Authenticated Execution Gateway for Injection Security. TypeScript client for the AEGIS proxy.",
   "license": "Apache-2.0",
   "type": "module",

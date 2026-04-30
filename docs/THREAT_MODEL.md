@@ -97,7 +97,7 @@ A single misconfigured policy still leaves multiple independent gates. This is t
 
 Please report vulnerabilities by opening a **[private GitHub Security Advisory](https://github.com/cwellbournewood/aegis/security/advisories/new)**. Do not file public issues for actively exploitable bugs.
 
-This is a community-maintained project; there is no triage or fix-turnaround SLA. Reports are handled on a best-effort basis. If timely vendor support matters to you, fork and self-maintain.
+Reports are handled on a best-effort basis. No SLA on triage or fix turnaround.
 
 ## 10. Cryptographic primitives
 
