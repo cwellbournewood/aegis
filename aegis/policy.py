@@ -76,10 +76,7 @@ def load_policy(path: str) -> Policy:
 def _policy_from_dict(data: dict[str, Any]) -> Policy:
     mode = PolicyMode(data.get("mode", "balanced"))
 
-    if data.get("flows"):
-        rules = [_parse_rule(r) for r in data["flows"]]
-    else:
-        rules = default_rules()
+    rules = [_parse_rule(r) for r in data["flows"]] if data.get("flows") else default_rules()
 
     anchor_data = data.get("anchor", {}) or {}
     anchor = AnchorConfig(

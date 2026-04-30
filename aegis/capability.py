@@ -13,6 +13,7 @@ binding `send_email` to that recipient was ever minted.
 from __future__ import annotations
 
 import base64
+import contextlib
 import enum
 import hmac
 import json
@@ -259,21 +260,19 @@ class CapabilityMinter:
                 failed_constraints=tuple(failed),
             )
 
-        if claims.single_use:
-            if claims.nonce in self._used:
-                return CapabilityVerdict(valid=False, reason="single-use token already consumed")
+        if claims.single_use and claims.nonce in self._used:
+            return CapabilityVerdict(valid=False, reason="single-use token already consumed")
 
         token = CapabilityToken(raw=raw, claims=claims)
         return CapabilityVerdict(valid=True, reason="ok", token=token)
 
     def consume(self, token: CapabilityToken) -> None:
-        if token.claims.single_use:
-            self._used.add(token.claims.nonce)
-            if self._used_callback is not None:
-                try:
-                    self._used_callback(token.claims.nonce)
-                except Exception:
-                    pass
+        if not token.claims.single_use:
+            return
+        self._used.add(token.claims.nonce)
+        if self._used_callback is not None:
+            with contextlib.suppress(Exception):
+                self._used_callback(token.claims.nonce)
 
 
 def constraint_eq(value: Any) -> ParamConstraint:

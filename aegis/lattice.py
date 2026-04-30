@@ -92,11 +92,10 @@ class LatticeGate:
         causal_inputs: list[CCPTEnvelope],
         action_kind: str = "tool_call",
     ) -> LatticeVerdict:
-        if not causal_inputs:
-            # Action with no traceable causal origin is suspicious — treat as L0.
-            effective = Level.L0
-        else:
-            effective = min(env.level for env in causal_inputs)
+        # Action with no traceable causal origin is suspicious — treat as L0.
+        effective = (
+            Level.L0 if not causal_inputs else min(env.level for env in causal_inputs)
+        )
 
         # Iterate from most-restrictive (lowest from_level) to least.
         ordered = sorted(self.rules, key=lambda r: r.from_level.rank)

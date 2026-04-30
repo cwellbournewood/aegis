@@ -190,7 +190,7 @@ def derive_child(
         session_key=session_key,
         session_id=parent.session_id,
         level=inherited_level,
-        parents=parent.parents + (parent.chunk_id,),
+        parents=(*parent.parents, parent.chunk_id),
     )
 
 

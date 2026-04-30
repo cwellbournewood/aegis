@@ -148,11 +148,9 @@ class VerifyResult:
 def verify_log(path: str) -> VerifyResult:
     """Walk the file and verify the hash chain end-to-end."""
     prev_hash = GENESIS_HASH
-    expected_seq = 0
     n = 0
-    for entry in iter_log(path):
-        expected_seq += 1
-        n += 1
+    for n, entry in enumerate(iter_log(path), start=1):
+        expected_seq = n
         if entry.seq != expected_seq:
             return VerifyResult(ok=False, entries_checked=n, broken_at=expected_seq, reason="seq gap or reorder")
         if entry.prev_hash != prev_hash:
