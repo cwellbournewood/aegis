@@ -39,6 +39,7 @@ class CanaryConfig:
 class CapabilityConfig:
     default_ttl_seconds: int = 600
     require_for_levels: tuple[str, ...] = ("L2", "L3")
+    nonce_store: dict[str, Any] = field(default_factory=lambda: {"kind": "memory"})
 
 
 @dataclass
@@ -96,6 +97,7 @@ def _policy_from_dict(data: dict[str, Any]) -> Policy:
     capability = CapabilityConfig(
         default_ttl_seconds=int(cap_data.get("default_ttl_seconds", 600)),
         require_for_levels=tuple(cap_data.get("require_for_levels", ["L2", "L3"]) or []),
+        nonce_store=cap_data.get("nonce_store") or {"kind": "memory"},
     )
 
     return Policy(

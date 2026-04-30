@@ -221,20 +221,69 @@ def genkey(n_bytes: int) -> None:
     click.echo(secrets.token_bytes(n_bytes).hex())
 
 
+@main.command("bench-perf")
+@click.option("--iterations", default=300, type=int, show_default=True)
+@click.option("--workload", default="all", type=click.Choice(["all", "simple", "tool", "tool4", "context"]))
+def bench_perf(iterations: int, workload: str) -> None:
+    """Measure orchestrator latency and throughput on representative workloads."""
+    from tests.perf.harness import (
+        build_async_tool_call_workload,
+        build_large_context_workload,
+        build_simple_text_workload,
+        build_tool_call_workload,
+        measure_async,
+        measure_sync,
+        measure_throughput,
+    )
+
+    table = Table(title=f"AEGIS Performance ({iterations} iters)")
+    table.add_column("workload")
+    table.add_column("p50 ms", justify="right")
+    table.add_column("p90 ms", justify="right")
+    table.add_column("p99 ms", justify="right")
+    table.add_column("mean ms", justify="right")
+    table.add_column("max ms", justify="right")
+
+    if workload in ("all", "simple"):
+        _, run = build_simple_text_workload()
+        r = measure_sync(run, iterations=iterations)
+        table.add_row("simple text", f"{r.p50_ms:.3f}", f"{r.p90_ms:.3f}", f"{r.p99_ms:.3f}", f"{r.mean_ms:.3f}", f"{r.max_ms:.3f}")
+
+    if workload in ("all", "tool"):
+        _, run = build_tool_call_workload(num_tool_calls=1)
+        r = measure_sync(run, iterations=iterations)
+        table.add_row("1 tool call (sync)", f"{r.p50_ms:.3f}", f"{r.p90_ms:.3f}", f"{r.p99_ms:.3f}", f"{r.mean_ms:.3f}", f"{r.max_ms:.3f}")
+
+    if workload in ("all", "tool4"):
+        _, run = build_tool_call_workload(num_tool_calls=4)
+        r = measure_sync(run, iterations=iterations)
+        table.add_row("4 tool calls (sync)", f"{r.p50_ms:.3f}", f"{r.p90_ms:.3f}", f"{r.p99_ms:.3f}", f"{r.mean_ms:.3f}", f"{r.max_ms:.3f}")
+
+        import asyncio as _a
+        _, arun = build_async_tool_call_workload(num_tool_calls=4)
+        ar = _a.run(measure_async(arun, iterations=max(iterations // 3, 50)))
+        table.add_row("4 tool calls (async)", f"{ar.p50_ms:.3f}", f"{ar.p90_ms:.3f}", f"{ar.p99_ms:.3f}", f"{ar.mean_ms:.3f}", f"{ar.max_ms:.3f}")
+
+    if workload in ("all", "context"):
+        _, run = build_large_context_workload(num_messages=50)
+        r = measure_sync(run, iterations=max(iterations // 3, 50))
+        table.add_row("50-msg context", f"{r.p50_ms:.3f}", f"{r.p90_ms:.3f}", f"{r.p99_ms:.3f}", f"{r.mean_ms:.3f}", f"{r.max_ms:.3f}")
+
+    console.print(table)
+
+    if workload == "all":
+        _, run = build_simple_text_workload()
+        rps = measure_throughput(run, duration_seconds=1.0)
+        console.print(f"\nThroughput (simple workload, 1 sec): [bold cyan]{rps:.0f} req/s[/bold cyan]")
+
+
 @main.command("bench")
 @click.option("--corpus", default=None, help="Path to corpus JSON (else use bundled).")
 @click.option("--mode", default="balanced", type=click.Choice(["strict", "balanced", "permissive"]))
 def bench(corpus: str | None, mode: str) -> None:
     """Run the adversarial corpus benchmark and report block rate."""
-    from tests.adversarial.corpus_loader import load_corpus, run_benchmark
+    from aegis.bench import load_corpus, run_benchmark
 
-    if corpus is None:
-        here = os.path.dirname(__file__)
-        corpus = os.path.join(here, "..", "tests", "adversarial", "corpus.json")
-        corpus = os.path.normpath(corpus)
-        if not os.path.exists(corpus):
-            console.print(f"[red]Bundled corpus not found at {corpus}.[/red]")
-            sys.exit(1)
     cases = load_corpus(corpus)
     results = run_benchmark(cases, mode=mode)
     _render_bench_results(results)

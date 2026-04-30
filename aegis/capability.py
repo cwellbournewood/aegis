@@ -179,13 +179,22 @@ class CapabilityMinter:
         - issued_at / expires_at
         - single-use nonce
 
-    Single-use enforcement is in-memory; for distributed deployments swap in
-    a Redis-backed nonce store via `set_used_callback`.
+    Single-use enforcement uses a pluggable `NonceStore`: the in-memory default
+    works for single-replica deployments; the Redis backend (or any other
+    implementer of the protocol) provides cross-replica atomicity via
+    `SET NX EX`.
     """
 
-    def __init__(self, default_ttl_seconds: int = 600) -> None:
+    def __init__(
+        self,
+        default_ttl_seconds: int = 600,
+        nonce_store=None,  # type: ignore[no-untyped-def]
+    ) -> None:
+        from aegis.nonce_store import MemoryNonceStore, NonceStore  # local import to avoid cycles
+
         self.default_ttl = default_ttl_seconds
-        self._used: set[str] = set()
+        self._nonce_store: NonceStore = nonce_store if nonce_store is not None else MemoryNonceStore()
+        # Backward-compat: legacy callback hook still invoked post-consume.
         self._used_callback = None  # type: ignore[var-annotated]
 
     def set_used_callback(self, cb) -> None:
@@ -260,19 +269,59 @@ class CapabilityMinter:
                 failed_constraints=tuple(failed),
             )
 
-        if claims.single_use and claims.nonce in self._used:
+        if claims.single_use and self._nonce_store.is_used(claims.nonce):
             return CapabilityVerdict(valid=False, reason="single-use token already consumed")
 
         token = CapabilityToken(raw=raw, claims=claims)
         return CapabilityVerdict(valid=True, reason="ok", token=token)
 
     def consume(self, token: CapabilityToken) -> None:
+        """Mark a single-use token as consumed.
+
+        For single-replica stores (`MemoryNonceStore`), this and `verify` are
+        a check-then-set sequence: between them, another thread could verify
+        the same token. For strict atomicity on hot tokens use `consume_atomic`,
+        which collapses both steps and is the recommended path in concurrent
+        deployments.
+        """
         if not token.claims.single_use:
             return
-        self._used.add(token.claims.nonce)
+        ttl = max(1, int(token.claims.expires_at - time.time()) + 60)
+        self._nonce_store.mark_used(token.claims.nonce, ttl)
         if self._used_callback is not None:
             with contextlib.suppress(Exception):
                 self._used_callback(token.claims.nonce)
+
+    def verify_and_consume(
+        self,
+        raw: str,
+        session_key: bytes,
+        proposed: ProposedCall,
+        expected_session_id: str | None = None,
+    ) -> CapabilityVerdict:
+        """Atomic verify-then-consume.
+
+        For single-use tokens, the single source of truth is the nonce store's
+        `mark_used` — this method calls it iff the token is otherwise valid.
+        Two concurrent callers across processes (with a Redis nonce store)
+        will see exactly one of them succeed; the other gets
+        `single-use token already consumed`.
+        """
+        verdict = self.verify(raw, session_key, proposed, expected_session_id=expected_session_id)
+        if not verdict.valid or verdict.token is None:
+            return verdict
+        if not verdict.token.claims.single_use:
+            return verdict
+        ttl = max(1, int(verdict.token.claims.expires_at - time.time()) + 60)
+        if not self._nonce_store.mark_used(verdict.token.claims.nonce, ttl):
+            return CapabilityVerdict(
+                valid=False,
+                reason="single-use token already consumed",
+            )
+        if self._used_callback is not None:
+            with contextlib.suppress(Exception):
+                self._used_callback(verdict.token.claims.nonce)
+        return verdict
 
 
 def constraint_eq(value: Any) -> ParamConstraint:

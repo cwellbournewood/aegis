@@ -143,6 +143,24 @@ Run the bench to validate: `aegis bench --mode balanced`.
 capability:
   default_ttl_seconds: 300   # 5 minutes — tighter than the 600s default
   require_for_levels: [L2, L3]
+  nonce_store:
+    kind: memory   # or "redis" for multi-replica HA
+```
+
+For multi-replica deployments, switch to Redis:
+
+```yaml
+capability:
+  nonce_store:
+    kind: redis
+    url: redis://your-redis.internal:6379/0
+    namespace: aegis:prod:cap:nonce:
+```
+
+Install the Redis extra:
+
+```bash
+pip install 'aegis-guard[redis]'
 ```
 
 ## 6. Observe
@@ -186,6 +204,48 @@ endpoint = "https://splunk.internal:8088"
 - `GET /aegis/version` — version
 - `GET /aegis/decisions?limit=50` — recent decisions
 - `GET /aegis/decisions/{request_id}` — one decision
+- `GET /metrics` — Prometheus exposition
+
+### Prometheus integration
+
+Scrape `/metrics`:
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: aegis
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['aegis.internal:8080']
+```
+
+Useful PromQL queries:
+
+```promql
+# Per-upstream block rate
+sum(rate(aegis_requests_total{decision="BLOCK"}[5m])) by (upstream)
+  / sum(rate(aegis_requests_total[5m])) by (upstream)
+
+# p95 decision latency
+histogram_quantile(0.95, rate(aegis_decision_seconds_bucket[5m]))
+
+# Canary leaks per minute
+rate(aegis_canary_leaks_total[1m])
+
+# Capability rejections by reason
+sum(rate(aegis_capability_rejected_total[5m])) by (reason)
+```
+
+### Streaming endpoints
+
+For agentic apps that need streaming, use the streaming routes:
+
+```
+POST /v1/anthropic/messages/stream
+POST /v1/openai/chat/completions/stream
+```
+
+The proxy emits SSE. AEGIS injects `event: aegis_blocked` on canary leak (mid-stream) and `event: aegis_done` at end-of-stream with the final decision record.
 
 ## 7. Capacity planning
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json as _json
 import os
 import time
 from collections.abc import AsyncIterator
@@ -10,7 +11,7 @@ from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from aegis import __version__
@@ -23,6 +24,7 @@ from aegis.capability import (
     constraint_prefix,
     constraint_regex,
 )
+from aegis.metrics import metrics
 from aegis.policy import Policy, load_policy_from_env_or_default
 from aegis.proxy.adapters import get_adapter
 from aegis.proxy.orchestrator import Orchestrator
@@ -118,6 +120,18 @@ def create_app(orchestrator: Orchestrator | None = None, policy: Policy | None =
     @app.get("/aegis/version")
     async def version() -> dict[str, str]:
         return {"version": __version__}
+
+    # ---------------------------------------------------------------- metrics
+    @app.get("/metrics", response_class=PlainTextResponse)
+    async def prometheus_metrics() -> PlainTextResponse:
+        # Refresh gauges that are derived from orchestrator state.
+        orch: Orchestrator = app.state.orchestrator
+        metrics.gauge("aegis_active_sessions").set(float(len(orch.sessions)))
+        metrics.gauge("aegis_log_entries").set(float(len(orch.log)))
+        return PlainTextResponse(
+            content=metrics.render(),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
 
     # ---------------------------------------------------------------- sessions
     @app.post("/aegis/session", response_model=CreateSessionResponse)
@@ -237,6 +251,15 @@ def create_app(orchestrator: Orchestrator | None = None, policy: Policy | None =
     async def google_generate_content(request: Request) -> Any:
         return await _proxied_call(app, request, upstream="google")
 
+    # Streaming endpoints: same wire format, but `stream: true` is supported.
+    @app.post("/v1/anthropic/messages/stream")
+    async def anthropic_messages_stream(request: Request) -> Any:
+        return await _proxied_stream(app, request, upstream="anthropic")
+
+    @app.post("/v1/openai/chat/completions/stream")
+    async def openai_chat_completions_stream(request: Request) -> Any:
+        return await _proxied_stream(app, request, upstream="openai")
+
     return app
 
 
@@ -262,7 +285,7 @@ async def _proxied_call(app: FastAPI, request: Request, upstream: str) -> Any:
         upstream_response = await _forward(app, upstream, request, upstream_body)
 
     norm_resp = adapter.parse_response(upstream_response)
-    record = orch.post_flight(norm_req, norm_resp, ctx)
+    record = await orch.post_flight_async(norm_req, norm_resp, ctx)
 
     # Inject decision metadata.
     upstream_response = dict(upstream_response)
@@ -298,6 +321,102 @@ async def _proxied_call(app: FastAPI, request: Request, upstream: str) -> Any:
         )
 
     return upstream_response
+
+
+async def _proxied_stream(app: FastAPI, request: Request, upstream: str) -> Any:
+    """Streaming variant of the proxied call.
+
+    Per-chunk canary scan rejects mid-stream; final-pass full pipeline runs at
+    end-of-stream. The response is an SSE stream of text/event-stream events
+    that mirrors the upstream's wire format, plus AEGIS decision events when
+    relevant.
+    """
+    from aegis.proxy.streaming import (
+        StreamingEvaluator,
+        parse_anthropic_sse,
+        parse_openai_sse,
+    )
+
+    orch: Orchestrator = app.state.orchestrator
+
+    try:
+        body = await request.json()
+    except Exception as exc:
+        raise HTTPException(400, f"invalid JSON body: {exc}") from exc
+
+    adapter = get_adapter(upstream)
+    norm_req = adapter.parse_request(body, headers=dict(request.headers))
+    norm_req, ctx = orch.pre_flight(norm_req)
+
+    body.setdefault("stream", True)
+
+    parser = parse_anthropic_sse if upstream == "anthropic" else parse_openai_sse
+
+    dry_run = os.environ.get("AEGIS_DRY_RUN") == "1" or body.get("aegis", {}).get("dry_run")
+
+    async def upstream_chunks() -> AsyncIterator[bytes]:
+        if dry_run:
+            # Synthetic SSE for testing: emit two text deltas + done.
+            yield b'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"[AEGIS dry "}}\n'
+            yield b'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"run]"}}\n'
+            yield b'data: {"type":"message_stop"}\n'
+            return
+
+        url = UPSTREAM_URLS.get(upstream)
+        if not url:
+            raise HTTPException(502, f"no upstream URL for {upstream}")
+
+        upstream_body = adapter.render_request(body, norm_req)
+        headers = {
+            k: v for k, v in request.headers.items() if k.lower() not in {"host", "content-length"}
+        }
+        client: httpx.AsyncClient = app.state.http_client
+        async with client.stream("POST", url, json=upstream_body, headers=headers) as resp:
+            async for line in resp.aiter_lines():
+                yield line.encode("utf-8") + b"\n"
+
+    evaluator = StreamingEvaluator(orch, norm_req, ctx)
+
+    async def event_stream() -> AsyncIterator[bytes]:
+        async for event in evaluator.evaluate(parser(upstream_chunks())):
+            if event.kind == "chunk":
+                # Re-render the chunk in a wire-format-neutral SSE frame.
+                # We mirror the upstream's structure as closely as possible.
+                payload: dict[str, Any] = {}
+                if event.chunk.text:
+                    payload["text"] = event.chunk.text
+                if event.chunk.tool_calls:
+                    payload["tool_calls"] = [
+                        {"tool": tc.tool, "parameters": tc.parameters}
+                        for tc in event.chunk.tool_calls
+                    ]
+                if event.chunk.done:
+                    payload["done"] = True
+                yield ("data: " + _json.dumps(payload) + "\n\n").encode("utf-8")
+            elif event.kind == "block":
+                payload = {
+                    "aegis": {
+                        "decision": "BLOCK",
+                        "reason": event.reason,
+                        "request_id": event.request_id,
+                        "session_id": event.session_id,
+                    }
+                }
+                yield ("event: aegis_blocked\ndata: " + _json.dumps(payload) + "\n\n").encode("utf-8")
+                return
+            elif event.kind == "done":
+                payload = {
+                    "aegis": {
+                        "decision": event.decision,
+                        "reason": event.reason,
+                        "request_id": event.request_id,
+                        "session_id": event.session_id,
+                    },
+                    "done": True,
+                }
+                yield ("event: aegis_done\ndata: " + _json.dumps(payload) + "\n\n").encode("utf-8")
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 async def _forward(app: FastAPI, upstream: str, request: Request, body: dict[str, Any]) -> dict[str, Any]:

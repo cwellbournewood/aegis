@@ -2,7 +2,7 @@ replicaCount: 2
 
 image:
   repository: ghcr.io/cwellbournewood/aegis
-  tag: "1.1.0"
+  tag: "1.2.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -90,3 +90,13 @@ podLabels: {}
 
 serviceMonitor:
   enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+# Optional: deploy a sidecar redis as the capability-token nonce store for
+# multi-replica HA. Off by default; in production use a managed Redis.
+redis:
+  enabled: false
+  image: redis:7-alpine
+  password: ""

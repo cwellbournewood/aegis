@@ -7,10 +7,16 @@ one decision, then logs the result.
 Provider adapters extract a generic `NormalizedRequest` and `NormalizedResponse`
 and feed them through this orchestrator — keeping all five layers wire-format
 agnostic.
+
+Both sync (`pre_flight` / `post_flight`) and async (`pre_flight_async` /
+`post_flight_async`) APIs are provided. The async variants execute the
+independent gates (canary, lattice, drift, capability) in parallel via
+`asyncio.gather`, cutting tail latency to max(gate) instead of sum(gates).
 """
 
 from __future__ import annotations
 
+import asyncio
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -23,6 +29,8 @@ from aegis.ccpt import CCPTEnvelope, Level, Origin, default_level_for, tag
 from aegis.decision import DecisionEngine, DecisionRecord, PolicyMode, Verdict, Vote
 from aegis.lattice import LatticeDecision, LatticeGate
 from aegis.log import DecisionLog
+from aegis.metrics import metrics
+from aegis.nonce_store import make_nonce_store_from_config
 from aegis.policy import Policy, load_policy_from_env_or_default
 from aegis.session import Session, SessionStore
 
@@ -93,7 +101,10 @@ class Orchestrator:
             threshold_balanced=self.policy.anchor.threshold_balanced,
             threshold_strict=self.policy.anchor.threshold_strict,
         )
-        self.minter = CapabilityMinter(default_ttl_seconds=self.policy.capability.default_ttl_seconds)
+        self.minter = CapabilityMinter(
+            default_ttl_seconds=self.policy.capability.default_ttl_seconds,
+            nonce_store=make_nonce_store_from_config(self.policy.capability.nonce_store),
+        )
         self.engine = DecisionEngine(mode=self.policy.mode)
 
         if decision_log is not None:
@@ -218,39 +229,178 @@ class Orchestrator:
         resp: NormalizedResponse,
         ctx: ProxyContext,
     ) -> DecisionRecord:
-        """Run canary scan, drift gate, capability gate. Return the final decision."""
-        votes = list(ctx.pre_votes)
+        """Run canary scan, drift gate, capability gate. Return the final decision.
 
-        # Canary leak scan over response text + tool-call params.
-        votes.append(self._canary_vote(resp, ctx))
+        Synchronous variant. For async deployments use `post_flight_async`,
+        which runs the independent gates concurrently via `asyncio.gather`.
+        """
+        decision_start = time.perf_counter()
+        votes = self._collect_votes_sync(req, resp, ctx)
+        record = self.engine.combine(votes, session_id=ctx.session.session_id, request_id=ctx.request_id)
+        self.log.append(self._log_payload(req, resp, ctx, record))
+        self._record_metrics(req, record, time.perf_counter() - decision_start)
+        return record
 
-        # If there are tool calls, run lattice + drift + capability gates per-call.
+    async def post_flight_async(
+        self,
+        req: NormalizedRequest,
+        resp: NormalizedResponse,
+        ctx: ProxyContext,
+    ) -> DecisionRecord:
+        """Async variant — runs independent gates in parallel.
+
+        Latency improvement scales with number of tool calls: a response with
+        N tool calls runs lattice / drift / capability for each in parallel
+        rather than serially.
+        """
+        decision_start = time.perf_counter()
+        loop = asyncio.get_running_loop()
+
+        canary_task = loop.run_in_executor(None, self._timed_canary_vote, resp, ctx)
+
+        per_call_tasks: list[asyncio.Future[Vote]] = []
         for call in resp.tool_calls:
-            votes.append(self._lattice_vote(ctx, call))
-            votes.append(self._drift_vote(ctx, call))
-            votes.append(self._capability_vote(req, ctx, call))
+            per_call_tasks.append(loop.run_in_executor(None, self._timed_lattice_vote, ctx, call))
+            per_call_tasks.append(loop.run_in_executor(None, self._timed_drift_vote, ctx, call))
+            per_call_tasks.append(loop.run_in_executor(None, self._timed_capability_vote, req, ctx, call))
 
-        # If no tool calls, we still want a drift vote for the textual output to flag wild departures.
+        votes: list[Vote] = list(ctx.pre_votes)
+        votes.append(await canary_task)
+        if per_call_tasks:
+            votes.extend(await asyncio.gather(*per_call_tasks))
+
         if not resp.tool_calls and ctx.session.anchor is not None and resp.text:
-            drift = self.anchor.drift_against_text(
-                resp.text[:512],
-                ctx.session.anchor,
-                mode=("strict" if self.policy.mode == PolicyMode.STRICT else "balanced"),
-            )
-            verdict = Verdict.ALLOW if not drift.drifted else Verdict.WARN
             votes.append(
-                Vote(
-                    layer="intent_drift_text",
-                    verdict=verdict,
-                    reason=f"text similarity={drift.similarity:.3f} threshold={drift.threshold:.3f}",
-                    confidence=0.5,
-                    metadata={"similarity": drift.similarity, "threshold": drift.threshold},
-                )
+                await loop.run_in_executor(None, self._text_drift_vote, resp, ctx)
             )
 
         record = self.engine.combine(votes, session_id=ctx.session.session_id, request_id=ctx.request_id)
         self.log.append(self._log_payload(req, resp, ctx, record))
+        self._record_metrics(req, record, time.perf_counter() - decision_start)
         return record
+
+    def _collect_votes_sync(
+        self,
+        req: NormalizedRequest,
+        resp: NormalizedResponse,
+        ctx: ProxyContext,
+    ) -> list[Vote]:
+        votes = list(ctx.pre_votes)
+        votes.append(self._timed_canary_vote(resp, ctx))
+        for call in resp.tool_calls:
+            votes.append(self._timed_lattice_vote(ctx, call))
+            votes.append(self._timed_drift_vote(ctx, call))
+            votes.append(self._timed_capability_vote(req, ctx, call))
+        if not resp.tool_calls and ctx.session.anchor is not None and resp.text:
+            votes.append(self._text_drift_vote(resp, ctx))
+        return votes
+
+    def _text_drift_vote(self, resp: NormalizedResponse, ctx: ProxyContext) -> Vote:
+        """Lightweight drift gate over textual output when there are no tool calls."""
+        drift = self.anchor.drift_against_text(
+            resp.text[:512],
+            ctx.session.anchor,
+            mode=("strict" if self.policy.mode == PolicyMode.STRICT else "balanced"),
+        )
+        verdict = Verdict.ALLOW if not drift.drifted else Verdict.WARN
+        return Vote(
+            layer="intent_drift_text",
+            verdict=verdict,
+            reason=f"text similarity={drift.similarity:.3f} threshold={drift.threshold:.3f}",
+            confidence=0.5,
+            metadata={"similarity": drift.similarity, "threshold": drift.threshold},
+        )
+
+    # ---------------------------------------------------------------- timed wrappers
+    def _timed_canary_vote(self, resp: NormalizedResponse, ctx: ProxyContext) -> Vote:
+        start = time.perf_counter()
+        try:
+            return self._canary_vote(resp, ctx)
+        finally:
+            metrics.histogram("aegis_gate_seconds").observe(
+                time.perf_counter() - start, {"gate": "canary"}
+            )
+
+    def _timed_lattice_vote(self, ctx: ProxyContext, call) -> Vote:  # type: ignore[no-untyped-def]
+        start = time.perf_counter()
+        try:
+            return self._lattice_vote(ctx, call)
+        finally:
+            metrics.histogram("aegis_gate_seconds").observe(
+                time.perf_counter() - start, {"gate": "lattice"}
+            )
+
+    def _timed_drift_vote(self, ctx: ProxyContext, call) -> Vote:  # type: ignore[no-untyped-def]
+        start = time.perf_counter()
+        try:
+            return self._drift_vote(ctx, call)
+        finally:
+            metrics.histogram("aegis_gate_seconds").observe(
+                time.perf_counter() - start, {"gate": "intent_drift"}
+            )
+
+    def _timed_capability_vote(
+        self,
+        req: NormalizedRequest,
+        ctx: ProxyContext,
+        call,  # type: ignore[no-untyped-def]
+    ) -> Vote:
+        start = time.perf_counter()
+        try:
+            return self._capability_vote(req, ctx, call)
+        finally:
+            metrics.histogram("aegis_gate_seconds").observe(
+                time.perf_counter() - start, {"gate": "capability"}
+            )
+
+    def _record_metrics(
+        self,
+        req: NormalizedRequest,
+        record: DecisionRecord,
+        elapsed: float,
+    ) -> None:
+        metrics.histogram("aegis_decision_seconds").observe(elapsed)
+        metrics.counter("aegis_requests_total").inc(
+            labels={"upstream": req.upstream, "decision": record.decision.value}
+        )
+        for v in record.votes:
+            metrics.counter("aegis_layer_votes_total").inc(
+                labels={"layer": v.layer, "verdict": v.verdict.value}
+            )
+            if v.layer == "canary" and v.verdict.value == "BLOCK":
+                metrics.counter("aegis_canary_leaks_total").inc()
+            if v.layer == "capability":
+                if v.verdict.value == "ALLOW":
+                    metrics.counter("aegis_capability_consumed_total").inc()
+                elif v.verdict.value == "BLOCK":
+                    # Pull a short reason key without leaking specifics.
+                    short_reason = self._classify_capability_reason(v.reason)
+                    metrics.counter("aegis_capability_rejected_total").inc(
+                        labels={"reason": short_reason}
+                    )
+        metrics.gauge("aegis_active_sessions").set(float(len(self.sessions)))
+        metrics.gauge("aegis_log_entries").set(float(len(self.log)))
+
+    @staticmethod
+    def _classify_capability_reason(reason: str) -> str:
+        r = reason.lower()
+        if "no capability token" in r:
+            return "missing"
+        if "expired" in r:
+            return "expired"
+        if "tool mismatch" in r:
+            return "tool_mismatch"
+        if "session_id" in r:
+            return "session_mismatch"
+        if "single-use" in r or "consumed" in r:
+            return "replay"
+        if "constraint" in r or "violates" in r:
+            return "constraint_failed"
+        if "signature" in r:
+            return "bad_signature"
+        if "malformed" in r:
+            return "malformed"
+        return "other"
 
     def _canary_vote(self, resp: NormalizedResponse, ctx: ProxyContext) -> Vote:
         garden: CanaryGarden | None = ctx.session.canaries
@@ -348,14 +498,13 @@ class Orchestrator:
         proposed = ProposedCall(tool=call.tool, parameters=call.parameters)
         last_reason = ""
         for raw in candidates:
-            verdict = self.minter.verify(
+            verdict = self.minter.verify_and_consume(
                 raw,
                 session_key=ctx.session.hmac_key,
                 proposed=proposed,
                 expected_session_id=ctx.session.session_id,
             )
             if verdict.valid and verdict.token is not None:
-                self.minter.consume(verdict.token)
                 return Vote(
                     layer="capability",
                     verdict=Verdict.ALLOW,

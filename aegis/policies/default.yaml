@@ -66,3 +66,9 @@ canary:
 capability:
   default_ttl_seconds: 600
   require_for_levels: ["L2", "L3"]
+  # Single-use nonce ledger. For multi-replica deployments, swap to redis so
+  # nonces are atomic across replicas (`SET NX EX` under the hood).
+  nonce_store:
+    kind: memory  # memory | redis
+    # url: redis://localhost:6379/0          # for redis kind
+    # namespace: aegis:cap:nonce:

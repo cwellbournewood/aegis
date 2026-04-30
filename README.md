@@ -134,10 +134,11 @@ await session.mintCapability("send_email", { constraints: { to: c.eq("alice@x.co
 aegis up                        # start the proxy
 aegis up --policy ./policy.yaml # with a custom policy
 aegis logs --tail 50 --follow   # tail the decision log
-aegis verify ./aegis-decisions.log   # verify the hash chain
+aegis verify ./aegis-decisions.log   # verify hash chain + tip pointer
 aegis policy validate ./policy.yaml
 aegis policy show
 aegis bench                     # run the bundled adversarial corpus
+aegis bench-perf                # run latency / throughput benchmarks
 aegis genkey                    # 32-byte hex master key
 ```
 
@@ -202,15 +203,38 @@ Open-weights / local Ollama is scoped for v2.
 
 ## Performance
 
-| Metric | Default-config target |
-|---|---|
-| Added p50 latency | < 100 ms |
-| Added p99 latency | < 250 ms |
-| Token overhead (canaries + system block) | < 10% |
-| Memory footprint (proxy idle) | < 300 MB |
-| Throughput (4 vCPU, single instance) | > 100 req/s |
+| Metric | RFP target | Measured (idle, hashing embedder) |
+|---|---|---|
+| Added p50 latency | < 100 ms | **0.07 ms** (simple) / **0.10 ms** (1 tool call) / **0.25 ms** (4 tool calls) |
+| Added p99 latency | < 250 ms | **0.13 ms** / **0.28 ms** / **0.49 ms** |
+| Throughput (single instance) | > 100 req/s | **>12,000 req/s** |
+| Token overhead (canaries + system block) | < 10% | ~80 tokens / session |
 
-Embedding inference dominates the added latency. The default local hashing embedder is CPU-friendly and zero-install; for higher-quality drift detection install `aegis-guard[embed]` and switch the policy embedder to `sentence-transformers`.
+Numbers from `aegis bench-perf` on a Windows local box. CI-asserted regression tests (`tests/perf/`) run on every commit at 3x slack.
+
+Embedding inference dominates added latency in the worst case. The default local hashing embedder is CPU-friendly and zero-install; for higher-quality drift detection install `aegis-guard[embed]` and switch the policy embedder to `sentence-transformers`.
+
+### Streaming
+
+Modern agentic apps need streaming. AEGIS supports it natively:
+
+```bash
+POST /v1/anthropic/messages/stream
+POST /v1/openai/chat/completions/stream
+```
+
+Each chunk is canary-scanned as it arrives. A leak triggers an immediate `aegis_blocked` SSE event before the offending chunk is forwarded to the client. End-of-stream runs the full five-layer pipeline as a final pass. Buffer is bounded — a 1-hour stream uses constant memory.
+
+### Observability
+
+`GET /metrics` returns Prometheus exposition with:
+
+- `aegis_requests_total{upstream,decision}` — total requests labeled by upstream and ALLOW/WARN/BLOCK
+- `aegis_layer_votes_total{layer,verdict}` — per-layer vote counts
+- `aegis_canary_leaks_total` — high-confidence injection signal counter
+- `aegis_capability_consumed_total` / `aegis_capability_rejected_total{reason}` — token lifecycle
+- `aegis_decision_seconds` / `aegis_gate_seconds{gate}` — latency histograms
+- `aegis_active_sessions` / `aegis_log_entries` — gauges
 
 ---
 
