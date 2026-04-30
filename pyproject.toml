@@ -70,10 +70,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/aegis-guard/aegis"
-Documentation = "https://github.com/aegis-guard/aegis/tree/main/docs"
-Issues = "https://github.com/aegis-guard/aegis/issues"
-Source = "https://github.com/aegis-guard/aegis"
+Homepage = "https://github.com/cwellbournewood/aegis"
+Documentation = "https://github.com/cwellbournewood/aegis/tree/main/docs"
+Issues = "https://github.com/cwellbournewood/aegis/issues"
+Source = "https://github.com/cwellbournewood/aegis"
 
 [project.scripts]
 aegis = "aegis.cli:main"

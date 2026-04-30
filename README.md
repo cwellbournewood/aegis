@@ -51,7 +51,7 @@ Apps either point their existing OpenAI/Anthropic/Google client at the AEGIS pro
 ```bash
 docker run -d --name aegis -p 8080:8080 \
   -e AEGIS_MASTER_KEY="$(openssl rand -hex 32)" \
-  ghcr.io/aegis-guard/aegis:1.0.0
+  ghcr.io/cwellbournewood/aegis:1.0.0
 ```
 
 Or with `docker-compose`:

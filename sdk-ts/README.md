@@ -1,6 +1,6 @@
 # `@aegis/guard`
 
-TypeScript client for the [AEGIS](https://github.com/aegis-guard/aegis) prompt-injection defense gateway.
+TypeScript client for the [AEGIS](https://github.com/cwellbournewood/aegis) prompt-injection defense gateway.
 
 ## Install
 

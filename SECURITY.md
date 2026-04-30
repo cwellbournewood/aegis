@@ -4,10 +4,7 @@
 
 Please **do not** file public GitHub issues for security vulnerabilities.
 
-Instead:
-
-1. Open a **private GitHub Security Advisory** on this repository, OR
-2. Email **security@aegis-guard.org** (PGP key fingerprint to be published with first release).
+Instead, open a **[private GitHub Security Advisory](https://github.com/cwellbournewood/aegis/security/advisories/new)** on this repository.
 
 We will acknowledge within **72 hours** and aim to ship a fix or coordinated mitigation within **14 days** for high-severity issues.
 

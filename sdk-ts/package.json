@@ -35,10 +35,10 @@
     "ai-security",
     "aegis"
   ],
-  "homepage": "https://github.com/aegis-guard/aegis",
+  "homepage": "https://github.com/cwellbournewood/aegis",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aegis-guard/aegis.git",
+    "url": "https://github.com/cwellbournewood/aegis.git",
     "directory": "sdk-ts"
   },
   "devDependencies": {

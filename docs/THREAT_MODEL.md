@@ -95,7 +95,7 @@ A single misconfigured policy still leaves multiple independent gates. This is t
 
 ## 9. Reporting security issues
 
-Please report vulnerabilities by emailing **security@aegis-guard.org** (or opening a private GitHub Security Advisory). Do not file public issues for actively exploitable bugs.
+Please report vulnerabilities by opening a **[private GitHub Security Advisory](https://github.com/cwellbournewood/aegis/security/advisories/new)**. Do not file public issues for actively exploitable bugs.
 
 We will acknowledge within 72 hours and aim to ship a fix or mitigation within 14 days.
 

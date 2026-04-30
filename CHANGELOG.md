@@ -43,4 +43,4 @@ Initial public release.
 - Cross-agent / cross-session lattice extensions.
 - Principled taint propagation for model-paraphrased content.
 
-[1.0.0]: https://github.com/aegis-guard/aegis/releases/tag/v1.0.0
+[1.0.0]: https://github.com/cwellbournewood/aegis/releases/tag/v1.0.0
