@@ -1,0 +1,113 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aegis-guard"
+version = "1.0.0"
+description = "Authenticated Execution Gateway for Injection Security — structural prompt-injection defenses for LLM applications"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+authors = [
+    { name = "AEGIS Contributors" },
+]
+keywords = [
+    "llm",
+    "security",
+    "prompt-injection",
+    "ai-security",
+    "mlsecops",
+    "anthropic",
+    "openai",
+    "gemini",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "pydantic>=2.6",
+    "httpx>=0.27",
+    "cryptography>=42.0",
+    "pyyaml>=6.0",
+    "click>=8.1",
+    "numpy>=1.26",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+embed = [
+    "sentence-transformers>=2.5",
+    "torch>=2.1",
+]
+hosted-embed = [
+    "openai>=1.20",
+]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.1",
+    "respx>=0.20",
+    "anthropic>=0.25",
+]
+dev = [
+    "ruff>=0.3",
+    "mypy>=1.8",
+    "types-PyYAML",
+]
+
+[project.urls]
+Homepage = "https://github.com/aegis-guard/aegis"
+Documentation = "https://github.com/aegis-guard/aegis/tree/main/docs"
+Issues = "https://github.com/aegis-guard/aegis/issues"
+Source = "https://github.com/aegis-guard/aegis"
+
+[project.scripts]
+aegis = "aegis.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aegis*"]
+exclude = ["tests*", "sdk-ts*", "examples*"]
+
+[tool.setuptools.package-data]
+aegis = ["policies/*.yaml", "policies/*.yml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers"
+markers = [
+    "live: tests requiring live upstream API access",
+    "adversarial: tests against adversarial corpus",
+    "slow: slow tests (embeddings, integration)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = false
+ignore_missing_imports = true

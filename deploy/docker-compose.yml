@@ -1,0 +1,34 @@
+version: "3.8"
+
+services:
+  aegis:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: aegis-guard:latest
+    container_name: aegis
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      AEGIS_MASTER_KEY: ${AEGIS_MASTER_KEY:-}
+      AEGIS_POLICY_PATH: /app/aegis/policies/default.yaml
+      # Override upstream URLs here if you proxy via your own gateway:
+      # AEGIS_ANTHROPIC_URL: https://api.anthropic.com/v1/messages
+      # AEGIS_OPENAI_URL: https://api.openai.com/v1/chat/completions
+      # AEGIS_GOOGLE_URL: https://generativelanguage.googleapis.com/v1beta/models
+    volumes:
+      - aegis-data:/var/aegis
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/aegis/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+volumes:
+  aegis-data:

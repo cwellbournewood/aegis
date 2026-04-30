@@ -1,0 +1,66 @@
+# AEGIS default policy.
+#
+# Mode controls how the Decision Engine combines layer votes:
+#   strict      — any BLOCK blocks; any 2 WARNs block.
+#   balanced    — any BLOCK blocks; WARNs pass through with logging.
+#   permissive  — nothing blocks; everything is logged. (development only)
+mode: balanced
+
+# Per-session TTL for state (anchors, canaries, minted capabilities).
+session_ttl_seconds: 43200
+
+# Append-only hash-chained decision log path. Comment out to log only in-memory.
+log_path: ./aegis-decisions.log
+
+# Trust lattice flow rules. Evaluated in order of from_level (lowest first).
+flows:
+  - from: L0
+    to: tool_call
+    decision: BLOCK
+    reason: "untrusted content (web/email/tool output) cannot authorize tool calls"
+
+  - from: L1
+    to: tool_call
+    decision: WARN
+    reason: "RAG-origin causal chain — review and require capability token"
+
+  - from: L2
+    to: tool_call
+    decision: ALLOW
+    require: ["capability_token"]
+    reason: "authenticated user origin — gate on capability token"
+
+  - from: L3
+    to: tool_call
+    decision: ALLOW
+    reason: "system origin"
+
+  - from: L0
+    to: response_ref
+    decision: WARN
+    reason: "model response references untrusted content — log for audit"
+
+# Intent vector anchor configuration.
+anchor:
+  # Cosine similarity below threshold triggers drift.
+  # Hashing embedder is coarser than transformer embedders, so thresholds
+  # are tuned conservatively (lower = more permissive).
+  threshold_balanced: 0.30
+  threshold_strict: 0.45
+  refresh: session  # session | turn | explicit
+  embedder:
+    kind: hashing  # hashing | sentence-transformers
+    dim: 384
+    # For sentence-transformers (requires `pip install aegis-guard[embed]`):
+    # kind: sentence-transformers
+    # model: sentence-transformers/all-MiniLM-L6-v2
+
+# Canary tripwires — decoy instructions seeded into system prompt.
+canary:
+  enabled: true
+  count: 3
+
+# Capability token defaults.
+capability:
+  default_ttl_seconds: 600
+  require_for_levels: ["L2", "L3"]

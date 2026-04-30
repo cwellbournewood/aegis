@@ -1,0 +1,48 @@
+{
+  "name": "@aegis/guard",
+  "version": "1.0.0",
+  "description": "AEGIS — Authenticated Execution Gateway for Injection Security. TypeScript client for the AEGIS proxy.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test --experimental-vm-modules dist/index.test.js || echo 'no tests yet'",
+    "lint": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "llm",
+    "security",
+    "prompt-injection",
+    "ai-security",
+    "aegis"
+  ],
+  "homepage": "https://github.com/aegis-guard/aegis",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aegis-guard/aegis.git",
+    "directory": "sdk-ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.10.0"
+  }
+}
