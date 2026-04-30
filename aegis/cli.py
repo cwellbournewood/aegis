@@ -221,6 +221,39 @@ def genkey(n_bytes: int) -> None:
     click.echo(secrets.token_bytes(n_bytes).hex())
 
 
+@main.command(
+    "mcp-wrap",
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+)
+@click.option("--proxy-url", default=None, help="Optional AEGIS proxy URL for richer integration.")
+@click.option("--policy", "policy_mode", default="balanced", type=click.Choice(["strict", "balanced", "permissive"]))
+@click.option("--canaries", default=3, type=int, show_default=True, help="Number of canary tokens to seed.")
+@click.option("--no-l0-label", is_flag=True, help="Disable adding _aegis metadata to tool responses.")
+@click.argument("cmd", nargs=-1, required=True)
+def mcp_wrap(proxy_url: str | None, policy_mode: str, canaries: int, no_l0_label: bool, cmd: tuple[str, ...]) -> None:
+    """Wrap an MCP server with AEGIS-level inspection.
+
+    Example:
+        aegis mcp-wrap --policy strict -- npx @modelcontextprotocol/server-github
+    """
+    from aegis.mcp import run_wrapper
+
+    cmd_list = list(cmd)
+    if cmd_list and cmd_list[0] == "--":
+        cmd_list = cmd_list[1:]
+    if not cmd_list:
+        console.print("[red]Specify the MCP command after `--`.[/red]")
+        sys.exit(2)
+
+    run_wrapper(
+        cmd=cmd_list,
+        proxy_url=proxy_url,
+        policy_mode=policy_mode,
+        canary_count=canaries,
+        label_l0=not no_l0_label,
+    )
+
+
 @main.command("bench-perf")
 @click.option("--iterations", default=300, type=int, show_default=True)
 @click.option("--workload", default="all", type=click.Choice(["all", "simple", "tool", "tool4", "context"]))

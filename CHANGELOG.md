@@ -2,6 +2,26 @@
 
 All notable changes to AEGIS are documented here. Format adapted from [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning per [SemVer](https://semver.org/).
 
+## [1.3.0] — 2026-04-30
+
+Onboarding, fit clarity, and Claude Code / MCP integration.
+
+### Added
+
+- **`aegis mcp-wrap` subcommand** — wraps any MCP server's stdio transport so AEGIS inspects tool responses for canary leaks, optionally annotates them as L0, and replaces leaking responses with structured JSON-RPC errors *before they reach the agent*. Drop-in for Claude Code / Cursor / Cline users running third-party MCP servers. ~250 lines of self-contained code, no MCP SDK dependency.
+- **[docs/QUICKSTART.md](docs/QUICKSTART.md)** — three deployment cases with copy-paste code: Anthropic API agent (clean case), Claude Code (Path A: ANTHROPIC_BASE_URL; Path B: aegis mcp-wrap), other agentic frameworks (LangGraph, CrewAI, AutoGen).
+- **[docs/WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md)** — explicit fit criteria with 30-second decision rubric, five user profiles, infrastructure fit, and "do not use" cases. Targeting honestly increases adoption among the right users.
+- **[docs/MENTAL_MODEL.md](docs/MENTAL_MODEL.md)** — every layer explained with analogies (CCPT = DKIM for prompt context, Lattice = ER nurse vs. surgeon, Drift = self-driving-car heading detector, Canaries = marked $20 in the till, Capability tokens = key not permission slip).
+- **[ROADMAP.md](ROADMAP.md)** — prioritized improvement plan with explicit lenses (real attack surface gap > production blocker > defense-in-depth depth) and concrete deliverables per item.
+
+### Changed
+
+- README restructured: prominent "Quick links" block at top pointing to QUICKSTART / WHO_SHOULD_USE / MENTAL_MODEL / ROADMAP. Built-for / not-built-for framing in the lede.
+
+### Tests
+
+261 passing (was 252). +9 covering the MCP wrapper (clean passthrough, canary leak in tool response, nested-result detection, zero-width split, unparseable input, label_l0 toggle, toolResult variant, metrics counter increment).
+
 ## [1.2.0] — 2026-04-30
 
 Production hardening: streaming, async, observability, distributed deployments.

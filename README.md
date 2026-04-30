@@ -2,7 +2,18 @@
 
 **Authenticated Execution Gateway for Injection Security**
 
-Open-source, model-agnostic prompt-injection defense gateway for LLM applications. Apache-2.0.
+Open-source, model-agnostic prompt-injection defense gateway for agentic LLM applications. Apache-2.0.
+
+> **Built for** agents that take consequential tool actions (send email, modify databases, deploy code, post to APIs) and ingest untrusted content (RAG, web fetch, MCP servers).
+>
+> **Not built for** pure chatbots, agents that only see content you wrote yourself, or pre-product prototypes. See [WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md) for the 30-second decision rubric.
+
+## Quick links
+
+- **New here?** → [QUICKSTART.md](docs/QUICKSTART.md) — three deployment cases (Anthropic API, Claude Code, other agentic frameworks) with copy-paste code.
+- **Want intuition?** → [MENTAL_MODEL.md](docs/MENTAL_MODEL.md) — every layer explained with analogies (DKIM, ER nurse, drift detector, honeytoken, key-not-permission-slip).
+- **Right fit for me?** → [WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md) — user profiles, infrastructure fit, and explicit "do not use" cases.
+- **What's coming?** → [ROADMAP.md](ROADMAP.md) — prioritized improvement plan.
 
 ---
 
@@ -46,12 +57,14 @@ Apps either point their existing OpenAI/Anthropic/Google client at the AEGIS pro
 
 ## Quickstart (60 seconds)
 
+> Full quickstart with three deployment cases (Anthropic API agent, Claude Code, other frameworks) is in [docs/QUICKSTART.md](docs/QUICKSTART.md).
+
 ### Run the proxy with Docker
 
 ```bash
 docker run -d --name aegis -p 8080:8080 \
   -e AEGIS_MASTER_KEY="$(openssl rand -hex 32)" \
-  ghcr.io/cwellbournewood/aegis:1.0.0
+  ghcr.io/cwellbournewood/aegis:1.2.0
 ```
 
 Or with `docker-compose`:
@@ -140,7 +153,20 @@ aegis policy show
 aegis bench                     # run the bundled adversarial corpus
 aegis bench-perf                # run latency / throughput benchmarks
 aegis genkey                    # 32-byte hex master key
+aegis mcp-wrap -- <mcp-cmd>     # wrap an MCP server with AEGIS inspection
 ```
+
+### Wrapping an MCP server (for Claude Code / Cursor / Cline users)
+
+```bash
+# Instead of:
+claude mcp add github "npx @modelcontextprotocol/server-github"
+
+# Wrap it:
+claude mcp add github "aegis mcp-wrap --policy strict -- npx @modelcontextprotocol/server-github"
+```
+
+Now every tool response from that MCP server is canary-scanned, tagged L0, and the wrapper drops a tamper-evident JSON-RPC error into the agent's stream if injection is detected. See [QUICKSTART.md §Case 2](docs/QUICKSTART.md#case-2--claude-code-the-harder-case).
 
 ---
 
@@ -265,10 +291,14 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for the full threat model and d
 
 ## Documentation
 
+- [**Quickstart**](docs/QUICKSTART.md) — three deployment cases with copy-paste code
+- [**Who should use it**](docs/WHO_SHOULD_USE.md) — fit criteria, decision rubric, "do not use" cases
+- [**Mental model**](docs/MENTAL_MODEL.md) — every layer explained with analogies
 - [Architecture](docs/ARCHITECTURE.md) — the decision pipeline and how the layers compose
 - [Threat Model](docs/THREAT_MODEL.md) — what AEGIS defends against, what it doesn't
 - [Operator Guide](docs/OPERATOR.md) — deploying, tuning, and observing
 - [Contributing](docs/CONTRIBUTING.md) — code style, evaluation criteria, RFC process
+- [Roadmap](ROADMAP.md) — prioritized improvement plan
 
 ---
 

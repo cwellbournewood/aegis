@@ -20,7 +20,7 @@ from aegis.log import DecisionLog
 from aegis.policy import Policy, load_policy
 from aegis.session import Session, SessionStore
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 __all__ = [
     "AnchorVector",
