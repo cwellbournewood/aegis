@@ -69,49 +69,6 @@ def up(host: str, port: int, policy_path: str | None, reload: bool, workers: int
     )
 
 
-@main.command("logs")
-@click.option("--path", default=None, help="Path to log file (else read policy).")
-@click.option("--tail", "-n", default=20, type=int, show_default=True)
-@click.option("--follow", "-f", is_flag=True, help="Follow log file.")
-@click.option("--json", "as_json", is_flag=True, help="Emit raw JSON lines.")
-def logs(path: str | None, tail: int, follow: bool, as_json: bool) -> None:
-    """Tail the decision log."""
-    if path is None:
-        policy = load_policy_from_env_or_default()
-        path = policy.log_path
-    if not path or not os.path.exists(path):
-        console.print(f"[red]No log file found at {path or '<unset>'}[/red]")
-        sys.exit(1)
-
-    entries = list(iter_log(path))
-    show = entries[-tail:] if tail > 0 else entries
-
-    if as_json:
-        for e in show:
-            click.echo(json.dumps({"seq": e.seq, "ts": e.timestamp, "hash": e.hash, "payload": e.payload}))
-    else:
-        _render_log_table(show)
-
-    if follow:
-        import time as _time
-
-        last_seq = entries[-1].seq if entries else 0
-        try:
-            while True:
-                _time.sleep(0.5)
-                latest = list(iter_log(path))
-                new = [e for e in latest if e.seq > last_seq]
-                if new:
-                    if as_json:
-                        for e in new:
-                            click.echo(json.dumps({"seq": e.seq, "ts": e.timestamp, "hash": e.hash, "payload": e.payload}))
-                    else:
-                        _render_log_table(new)
-                    last_seq = new[-1].seq
-        except KeyboardInterrupt:
-            return
-
-
 def _render_log_table(entries) -> None:
     if not entries:
         console.print("[dim]no entries[/dim]")
@@ -136,6 +93,264 @@ def _render_log_table(entries) -> None:
             str(p.get("reason", ""))[:80],
         )
     console.print(t)
+
+
+@main.command("status")
+@click.option("--url", default="http://localhost:8080", help="Proxy URL.", show_default=True)
+def status(url: str) -> None:
+    """Show health, version, uptime, and live counters for a running proxy."""
+    import httpx as _httpx
+
+    try:
+        h = _httpx.get(f"{url.rstrip('/')}/aegis/health", timeout=5.0).json()
+    except Exception as exc:
+        console.print(f"[red]Could not reach AEGIS at {url}: {exc}[/red]")
+        sys.exit(2)
+
+    t = Table(title=f"AEGIS @ {url}")
+    t.add_column("field", style="bold")
+    t.add_column("value")
+    for k, v in h.items():
+        t.add_row(str(k), str(v))
+    console.print(t)
+
+
+@main.group("logs")
+def logs_group() -> None:
+    """Inspect, query, and tail the decision log."""
+
+
+@logs_group.command("tail")
+@click.option("--path", default=None, help="Path to log file (else read policy).")
+@click.option("--n", "tail_n", default=20, type=int, show_default=True)
+@click.option("--follow", "-f", is_flag=True, help="Follow the log file.")
+@click.option("--json", "as_json", is_flag=True, help="Emit raw JSON lines.")
+def logs_tail(path: str | None, tail_n: int, follow: bool, as_json: bool) -> None:
+    """Tail recent decisions (alias for the legacy `aegis logs` command)."""
+    _logs_tail_impl(path, tail_n, follow, as_json)
+
+
+@logs_group.command("show")
+@click.argument("request_id")
+@click.option("--path", default=None, help="Path to log file (else read policy).")
+def logs_show(request_id: str, path: str | None) -> None:
+    """Show the full formatted detail for a single decision."""
+    if path is None:
+        policy = load_policy_from_env_or_default()
+        path = policy.log_path
+    if not path or not os.path.exists(path):
+        console.print(f"[red]No log file at {path or '<unset>'}[/red]")
+        sys.exit(2)
+
+    target = None
+    for entry in iter_log(path):
+        if entry.payload.get("request_id") == request_id:
+            target = entry
+            break
+    if target is None:
+        console.print(f"[red]No entry with request_id {request_id}[/red]")
+        sys.exit(1)
+
+    _render_decision_detail(target)
+
+
+@logs_group.command("query")
+@click.option("--path", default=None, help="Path to log file (else read policy).")
+@click.option("--decision", "decision_filter", default=None, type=click.Choice(["ALLOW", "WARN", "BLOCK"]))
+@click.option("--upstream", default=None, help="Filter to a specific upstream provider.")
+@click.option("--tool", "tool_filter", default=None, help="Filter to entries that proposed a specific tool.")
+@click.option("--since", default=None, help="Filter to entries since e.g. '1h', '15m', or an ISO timestamp.")
+@click.option("--limit", default=100, type=int, show_default=True)
+def logs_query(
+    path: str | None,
+    decision_filter: str | None,
+    upstream: str | None,
+    tool_filter: str | None,
+    since: str | None,
+    limit: int,
+) -> None:
+    """Filter the decision log by decision, upstream, tool, and time."""
+    import re
+    import time as _time
+
+    if path is None:
+        policy = load_policy_from_env_or_default()
+        path = policy.log_path
+    if not path or not os.path.exists(path):
+        console.print(f"[red]No log file at {path or '<unset>'}[/red]")
+        sys.exit(2)
+
+    cutoff: float | None = None
+    if since:
+        m = re.fullmatch(r"(\d+)([smhd])", since)
+        if m:
+            n = int(m.group(1))
+            unit = {"s": 1, "m": 60, "h": 3600, "d": 86400}[m.group(2)]
+            cutoff = _time.time() - n * unit
+        else:
+            try:
+                from datetime import datetime
+                cutoff = datetime.fromisoformat(since).timestamp()
+            except ValueError:
+                console.print(f"[red]Invalid --since: {since}[/red]")
+                sys.exit(2)
+
+    matches = []
+    for entry in iter_log(path):
+        p = entry.payload
+        if decision_filter and p.get("decision") != decision_filter:
+            continue
+        if upstream and p.get("upstream") != upstream:
+            continue
+        if tool_filter:
+            tools = [tc.get("tool") for tc in (p.get("tool_calls") or [])]
+            if tool_filter not in tools:
+                continue
+        if cutoff is not None and float(p.get("timestamp") or entry.timestamp) < cutoff:
+            continue
+        matches.append(entry)
+        if len(matches) >= limit:
+            break
+
+    _render_log_table(matches)
+    console.print(f"\n[dim]{len(matches)} matching entr{'y' if len(matches) == 1 else 'ies'}.[/dim]")
+
+
+@logs_group.command("export")
+@click.option("--path", default=None, help="Path to log file (else read policy).")
+@click.option("--format", "fmt", default="jsonl", type=click.Choice(["jsonl", "ndjson"]))
+def logs_export(path: str | None, fmt: str) -> None:
+    """Stream the audit log to stdout in JSONL/NDJSON for SIEM ingest."""
+    if path is None:
+        policy = load_policy_from_env_or_default()
+        path = policy.log_path
+    if not path or not os.path.exists(path):
+        console.print(f"[red]No log file at {path or '<unset>'}[/red]")
+        sys.exit(2)
+
+    for entry in iter_log(path):
+        click.echo(
+            json.dumps(
+                {
+                    "seq": entry.seq,
+                    "ts": entry.timestamp,
+                    "prev_hash": entry.prev_hash,
+                    "hash": entry.hash,
+                    "payload": entry.payload,
+                },
+                separators=(",", ":"),
+                default=str,
+            )
+        )
+
+
+def _logs_tail_impl(path: str | None, tail_n: int, follow: bool, as_json: bool) -> None:
+    if path is None:
+        policy = load_policy_from_env_or_default()
+        path = policy.log_path
+    if not path or not os.path.exists(path):
+        console.print(f"[red]No log file found at {path or '<unset>'}[/red]")
+        sys.exit(1)
+
+    entries = list(iter_log(path))
+    show = entries[-tail_n:] if tail_n > 0 else entries
+
+    if as_json:
+        for e in show:
+            click.echo(
+                json.dumps({"seq": e.seq, "ts": e.timestamp, "hash": e.hash, "payload": e.payload})
+            )
+    else:
+        _render_log_table(show)
+
+    if follow:
+        import time as _time
+
+        last_seq = entries[-1].seq if entries else 0
+        try:
+            while True:
+                _time.sleep(0.5)
+                latest = list(iter_log(path))
+                new = [e for e in latest if e.seq > last_seq]
+                if new:
+                    if as_json:
+                        for e in new:
+                            click.echo(
+                                json.dumps({"seq": e.seq, "ts": e.timestamp, "hash": e.hash, "payload": e.payload})
+                            )
+                    else:
+                        _render_log_table(new)
+                    last_seq = new[-1].seq
+        except KeyboardInterrupt:
+            return
+
+
+def _render_decision_detail(entry) -> None:
+    """The drill-down view for a single decision."""
+    p = entry.payload
+    decision = str(p.get("decision", "?"))
+    color = {"ALLOW": "green", "WARN": "yellow", "BLOCK": "red"}.get(decision, "white")
+    console.print()
+    console.print(f"[bold]DECISION:[/bold] [{color}]{decision}[/{color}]   "
+                  f"[dim]ts={entry.timestamp}[/dim]")
+    console.print(f"[bold]Request:[/bold]  {p.get('request_id', '?')}")
+    console.print(f"[bold]Session:[/bold]  {p.get('session_id', '?')}")
+    console.print(f"[bold]Upstream:[/bold] {p.get('upstream', '?')}    "
+                  f"[bold]Mode:[/bold] {p.get('mode', '?')}    "
+                  f"[bold]Score:[/bold] {p.get('score', 0)}")
+    if p.get("reason"):
+        console.print(f"[bold]Reason:[/bold]   {p['reason']}")
+    blocked_by = p.get("blocked_by") or []
+    if blocked_by:
+        console.print(f"[bold]Blocked by:[/bold] [red]{', '.join(blocked_by)}[/red]")
+
+    votes = p.get("votes") or {}
+    if votes:
+        vt = Table(title="Layer Votes")
+        vt.add_column("layer")
+        vt.add_column("verdict")
+        vt.add_column("reason")
+        vt.add_column("conf", justify="right")
+        for layer, vote in votes.items():
+            v = str(vote.get("verdict", "?"))
+            color = {"ALLOW": "green", "WARN": "yellow", "BLOCK": "red"}.get(v, "white")
+            vt.add_row(
+                layer,
+                f"[{color}]{v}[/{color}]",
+                str(vote.get("reason", ""))[:80],
+                f"{vote.get('confidence', 0):.2f}",
+            )
+        console.print(vt)
+
+    tool_calls = p.get("tool_calls") or []
+    if tool_calls:
+        tt = Table(title="Proposed Tool Calls")
+        tt.add_column("tool")
+        tt.add_column("params (redacted)")
+        tt.add_column("summary")
+        for tc in tool_calls:
+            tt.add_row(
+                str(tc.get("tool", "?")),
+                ", ".join(tc.get("params_redacted") or tc.get("parameters_redacted") or []),
+                str(tc.get("summary") or "")[:80],
+            )
+        console.print(tt)
+
+    chunks = p.get("input_chunks") or []
+    if chunks:
+        ct = Table(title="Input Chunks")
+        ct.add_column("chunk_id")
+        ct.add_column("origin")
+        ct.add_column("level")
+        for c in chunks:
+            level = c.get("level", "")
+            color = {"L0": "red", "L1": "yellow", "L2": "cyan", "L3": "green"}.get(level, "white")
+            ct.add_row(
+                str(c.get("chunk_id", ""))[:16],
+                str(c.get("origin", "")),
+                f"[{color}]{level}[/{color}]",
+            )
+        console.print(ct)
 
 
 @main.command("verify")
@@ -219,6 +434,93 @@ def _print_policy_summary(policy: Policy) -> None:
 def genkey(n_bytes: int) -> None:
     """Generate a hex-encoded master key for AEGIS_MASTER_KEY."""
     click.echo(secrets.token_bytes(n_bytes).hex())
+
+
+@main.group("sessions")
+def sessions_group() -> None:
+    """Inspect active AEGIS sessions."""
+
+
+@sessions_group.command("list")
+@click.option("--url", default="http://localhost:8080", help="Proxy URL.")
+def sessions_list(url: str) -> None:
+    """List active sessions on a running proxy.
+
+    Note: AEGIS does not expose every session via API by default for privacy
+    reasons. This command shows the count from /aegis/health and points
+    operators at the decision log for per-session forensics.
+    """
+    import httpx as _httpx
+
+    try:
+        h = _httpx.get(f"{url.rstrip('/')}/aegis/health", timeout=5.0).json()
+    except Exception as exc:
+        console.print(f"[red]Could not reach AEGIS at {url}: {exc}[/red]")
+        sys.exit(2)
+    console.print(f"Active sessions: [bold]{h.get('active_sessions', 0)}[/bold]")
+    console.print(f"Log entries:     [bold]{h.get('log_entries', 0)}[/bold]")
+    console.print(
+        "\n[dim]Per-session forensics: `aegis logs query --since 1h` "
+        "or `aegis logs show <request_id>` for a specific decision.[/dim]"
+    )
+
+
+@sessions_group.command("show")
+@click.argument("session_id")
+@click.option("--url", default="http://localhost:8080")
+def sessions_show(session_id: str, url: str) -> None:
+    """Show one session's metadata."""
+    import httpx as _httpx
+
+    try:
+        body = _httpx.get(f"{url.rstrip('/')}/aegis/session/{session_id}", timeout=5.0)
+    except Exception as exc:
+        console.print(f"[red]Could not reach AEGIS at {url}: {exc}[/red]")
+        sys.exit(2)
+    if body.status_code == 404:
+        console.print(f"[red]No session with id {session_id}[/red]")
+        sys.exit(1)
+    if body.status_code >= 400:
+        console.print(f"[red]Error: {body.status_code} {body.text}[/red]")
+        sys.exit(1)
+
+    data = body.json()
+    t = Table(title=f"Session {session_id}")
+    t.add_column("field", style="bold")
+    t.add_column("value")
+    for k, v in data.items():
+        t.add_row(str(k), str(v))
+    console.print(t)
+
+
+@policy_group.command("explain")
+@click.option("--decision-id", "request_id", default=None, help="Look up a specific decision in the audit log.")
+@click.option("--path", default=None, help="Path to log file.")
+def policy_explain(request_id: str | None, path: str | None) -> None:
+    """Explain why a request decided the way it did, or show the active policy summary."""
+    if request_id:
+        if path is None:
+            policy = load_policy_from_env_or_default()
+            path = policy.log_path
+        if not path or not os.path.exists(path):
+            console.print(f"[red]No log file at {path or '<unset>'}[/red]")
+            sys.exit(2)
+        target = None
+        for entry in iter_log(path):
+            if entry.payload.get("request_id") == request_id:
+                target = entry
+                break
+        if target is None:
+            console.print(f"[red]No entry with request_id {request_id}[/red]")
+            sys.exit(1)
+        _render_decision_detail(target)
+    else:
+        # Show what the active policy *would* do at each level.
+        policy = load_policy_from_env_or_default()
+        _print_policy_summary(policy)
+        console.print(
+            "\n[dim]To explain a specific decision: `aegis policy explain --decision-id req_...`[/dim]"
+        )
 
 
 @main.command(

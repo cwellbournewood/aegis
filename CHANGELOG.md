@@ -2,6 +2,63 @@
 
 All notable changes to AEGIS are documented here. Format adapted from [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning per [SemVer](https://semver.org/).
 
+## [1.4.0] — 2026-04-30
+
+Five interface surfaces — each tuned for its audience.
+
+### Surface 1 — End-user graceful blocking
+
+The big behavioral change: tool-call blocks are now **soft**. When AEGIS blocks a tool call, the response is still HTTP 200 with the `tool_use` block rewritten to a structured "denied" message the agent can recover from gracefully (e.g., "I noticed an unusual instruction in that email and didn't act on it; here's the summary instead"). Hard HTTP 451 is reserved for canary leaks and broken envelopes — situations where the model itself appears compromised. End users see no technical detail; A3 adversaries get nothing useful to map.
+
+Implementation: [`_is_tool_call_only_block`](aegis/proxy/app.py) and [`_rewrite_response_with_blocked_tool_results`](aegis/proxy/app.py) handle the rewrite per provider format (Anthropic / OpenAI / Google). Tests in [tests/test_soft_block.py](tests/test_soft_block.py).
+
+### Surface 2 — Typed SDK with `suggested_fix`
+
+New module [`aegis.sdk.decision`](aegis/sdk/decision.py):
+
+- `AegisDecision` — frozen dataclass with `votes` (dict of `AegisVote`), `blocked_by`, `warnings`, `score`, `mode`, `reason`. `.pretty()` produces a developer-readable summary.
+- `AegisVote` / `AegisWarning` — typed per-layer data with confidence and metadata.
+- `AegisDecisionBlocked` — exception class with concrete `suggested_fix` strings per blocking layer (e.g., capability layer suggests `session.capabilities.mint("<tool>", constraints={...})`).
+- `attach_decision(response)` — lifts the `aegis` field off any response shape (dict, Pydantic, raw object).
+
+10 tests in [tests/test_sdk_decision.py](tests/test_sdk_decision.py).
+
+### Surface 3 — Operator CLI commands
+
+- `aegis status` — health/version/uptime/counts from a running proxy.
+- `aegis logs` group: `tail`, `show <id>`, `query --decision/upstream/tool/since/limit`, `export`.
+- `aegis sessions` group: `list`, `show <session_id>`.
+- `aegis policy explain --decision-id <req>` — drill-down formatted detail for one decision.
+- The legacy `aegis logs` is now `aegis logs tail`.
+
+### Surface 4 — Single-page dashboard
+
+`/aegis/dashboard` serves a self-contained HTML operator dashboard. No external deps (no React, no CDN, auditable on locked-down networks). Live decision stream, block-rate sparkline (last 5 min, SVG-rendered), per-layer ALLOW vs BLOCK bars, top blocked tools. Polls `/aegis/decisions` every second; under 50 KB total.
+
+### Surface 5 — Schema-versioned audit log
+
+The decision-log payload is now versioned `aegis.decision/v1` with new top-level fields:
+
+- `schema: "aegis.decision/v1"`
+- `policy_version` (the AEGIS version that wrote the entry)
+- `blocked_by` (aggregated array of layers that voted BLOCK)
+- `user_id` / `tenant_id` (optional, populated from `Session.metadata` for SIEM filtering)
+- `params_redacted` (renamed from `parameters_redacted`)
+- Per-vote `metadata` is now persisted in addition to verdict/reason/confidence.
+
+Backwards-compatible: existing logs continue to verify; new fields are additive.
+
+### Documentation
+
+[docs/INTERFACES.md](docs/INTERFACES.md) maps all five surfaces to the specific code, endpoints, and contracts in the repo.
+
+### Tests
+
+277 passing (was 261). +16 new across:
+- 10 typed SDK decision tests
+- 3 soft-block end-to-end tests (Anthropic + OpenAI graceful, canary leak still hard-blocks)
+- 3 dashboard tests (HTML response, no external resources, size budget)
+
 ## [1.3.0] — 2026-04-30
 
 Onboarding, fit clarity, and Claude Code / MCP integration.

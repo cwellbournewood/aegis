@@ -294,6 +294,7 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for the full threat model and d
 - [**Quickstart**](docs/QUICKSTART.md) — three deployment cases with copy-paste code
 - [**Who should use it**](docs/WHO_SHOULD_USE.md) — fit criteria, decision rubric, "do not use" cases
 - [**Mental model**](docs/MENTAL_MODEL.md) — every layer explained with analogies
+- [**Interfaces**](docs/INTERFACES.md) — five surfaces (end user, SDK, CLI, dashboard, audit log) and what each is tuned for
 - [Architecture](docs/ARCHITECTURE.md) — the decision pipeline and how the layers compose
 - [Threat Model](docs/THREAT_MODEL.md) — what AEGIS defends against, what it doesn't
 - [Operator Guide](docs/OPERATOR.md) — deploying, tuning, and observing

@@ -528,11 +528,21 @@ class Orchestrator:
         ctx: ProxyContext,
         record: DecisionRecord,
     ) -> dict[str, Any]:
+        from aegis import __version__
+
+        blocked_by = [
+            v.layer for v in record.votes if v.verdict == Verdict.BLOCK
+        ]
         return {
+            "schema": "aegis.decision/v1",
+            "policy_version": __version__,
             "request_id": record.request_id,
             "session_id": record.session_id,
+            "user_id": ctx.session.metadata.get("user_id"),
+            "tenant_id": ctx.session.metadata.get("tenant_id"),
             "upstream": req.upstream,
             "decision": record.decision.value,
+            "blocked_by": blocked_by,
             "reason": record.reason,
             "score": record.score,
             "mode": record.mode.value,
@@ -541,11 +551,16 @@ class Orchestrator:
                     "verdict": v.verdict.value,
                     "reason": v.reason,
                     "confidence": v.confidence,
+                    "metadata": v.metadata,
                 }
                 for v in record.votes
             },
             "tool_calls": [
-                {"tool": c.tool, "parameters_redacted": list(c.parameters.keys()), "summary": c.summary}
+                {
+                    "tool": c.tool,
+                    "params_redacted": list(c.parameters.keys()),
+                    "summary": c.summary,
+                }
                 for c in resp.tool_calls
             ],
             "input_chunks": [

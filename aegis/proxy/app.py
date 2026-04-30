@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from aegis import __version__
@@ -27,6 +27,7 @@ from aegis.capability import (
 from aegis.metrics import metrics
 from aegis.policy import Policy, load_policy_from_env_or_default
 from aegis.proxy.adapters import get_adapter
+from aegis.proxy.dashboard import render_dashboard
 from aegis.proxy.orchestrator import Orchestrator
 
 # Upstream endpoint URLs by provider.
@@ -120,6 +121,11 @@ def create_app(orchestrator: Orchestrator | None = None, policy: Policy | None =
     @app.get("/aegis/version")
     async def version() -> dict[str, str]:
         return {"version": __version__}
+
+    # ---------------------------------------------------------------- dashboard
+    @app.get("/aegis/dashboard", response_class=HTMLResponse)
+    async def dashboard() -> HTMLResponse:
+        return HTMLResponse(content=render_dashboard())
 
     # ---------------------------------------------------------------- metrics
     @app.get("/metrics", response_class=PlainTextResponse)
@@ -306,6 +312,25 @@ async def _proxied_call(app: FastAPI, request: Request, upstream: str) -> Any:
     )
 
     if record.decision.value == "BLOCK":
+        # Two block modes:
+        #   1. Tool-call block (graceful): the *only* reason for BLOCK is one or
+        #      more tool calls failing the gates. We keep the response 200 and
+        #      replace the offending tool_use blocks with a structured "denied"
+        #      block the agent can recover from. This is the surface 1 design
+        #      goal — AEGIS hides unless a hard block is genuinely needed.
+        #   2. Hard block (HTTP 451): the request itself is broadly suspect
+        #      (e.g., canary leak in the response text, or the entire prompt
+        #      fails CCPT verification). The client gets a structured error.
+        soft_block_safe = _is_tool_call_only_block(record, norm_resp)
+        if soft_block_safe:
+            sanitized = _rewrite_response_with_blocked_tool_results(
+                upstream=upstream,
+                upstream_response=upstream_response,
+                norm_resp=norm_resp,
+                record=record,
+            )
+            return sanitized
+
         return JSONResponse(
             status_code=451,  # Unavailable for Legal Reasons — close-enough fit for "blocked by policy"
             content={
@@ -417,6 +442,105 @@ async def _proxied_stream(app: FastAPI, request: Request, upstream: str) -> Any:
                 yield ("event: aegis_done\ndata: " + _json.dumps(payload) + "\n\n").encode("utf-8")
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+def _is_tool_call_only_block(record, norm_resp) -> bool:  # type: ignore[no-untyped-def]
+    """True when the request would have been ALLOW if the model hadn't proposed
+    any tool calls. In that case we can rewrite the response to surface the
+    block as a tool-result error and keep the rest of the conversation flowing.
+    """
+    if not norm_resp.tool_calls:
+        return False
+    # Only the gates that fire per-tool-call are eligible for soft block.
+    per_call_layers = {"lattice", "intent_drift", "capability"}
+    for v in record.votes:
+        if v.verdict.value != "BLOCK":
+            continue
+        if v.layer not in per_call_layers:
+            return False
+    return True
+
+
+def _rewrite_response_with_blocked_tool_results(
+    upstream: str,
+    upstream_response: dict[str, Any],
+    norm_resp,  # type: ignore[no-untyped-def]
+    record,  # type: ignore[no-untyped-def]
+) -> JSONResponse:
+    """Replace tool_use blocks with provider-native 'tool denied' blocks.
+
+    This lets agentic clients recover gracefully — the agent sees that the tool
+    call was denied (with a structured reason) and can route around it. AEGIS
+    stays out of the user-facing surface unless the block is genuinely hard.
+    """
+    body = dict(upstream_response)
+    if upstream == "anthropic":
+        original_content = body.get("content") or []
+        new_content = []
+        for block in original_content:
+            if isinstance(block, dict) and block.get("type") == "tool_use":
+                tool_name = block.get("name", "<unknown>")
+                new_content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            f"[AEGIS] Tool call to `{tool_name}` was denied by the "
+                            f"security gateway: {record.reason}. I'll continue without it."
+                        ),
+                    }
+                )
+            else:
+                new_content.append(block)
+        body["content"] = new_content
+        if body.get("stop_reason") == "tool_use":
+            body["stop_reason"] = "end_turn"
+    elif upstream == "openai":
+        for choice in body.get("choices") or []:
+            msg = choice.get("message") or {}
+            if msg.get("tool_calls"):
+                msg.pop("tool_calls", None)
+                msg["content"] = (
+                    f"[AEGIS] Proposed tool call(s) were denied by the security "
+                    f"gateway: {record.reason}. Continuing without them."
+                )
+            choice["finish_reason"] = "stop"
+    elif upstream == "google":
+        for cand in body.get("candidates") or []:
+            content = cand.get("content") or {}
+            new_parts = []
+            for part in content.get("parts") or []:
+                if isinstance(part, dict) and "functionCall" in part:
+                    new_parts.append(
+                        {
+                            "text": (
+                                f"[AEGIS] Function call was denied by the security "
+                                f"gateway: {record.reason}."
+                            )
+                        }
+                    )
+                else:
+                    new_parts.append(part)
+            if new_parts:
+                content["parts"] = new_parts
+            cand["content"] = content
+            cand["finishReason"] = "STOP"
+
+    body.setdefault("aegis", {})
+    body["aegis"].update(
+        {
+            "decision": "BLOCK",
+            "soft_block": True,
+            "reason": record.reason,
+            "request_id": record.request_id,
+            "session_id": record.session_id,
+            "blocked_by": [v.layer for v in record.votes if v.verdict.value == "BLOCK"],
+            "votes": {
+                v.layer: {"verdict": v.verdict.value, "reason": v.reason}
+                for v in record.votes
+            },
+        }
+    )
+    return JSONResponse(status_code=200, content=body)
 
 
 async def _forward(app: FastAPI, upstream: str, request: Request, body: dict[str, Any]) -> dict[str, Any]:
