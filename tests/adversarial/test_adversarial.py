@@ -1,4 +1,4 @@
-"""Adversarial corpus tests — measurable attack-mitigation rate.
+"""Adversarial corpus tests, measurable attack-mitigation rate.
 
 These run during CI and assert the RFP's Phase-2 exit criterion:
 "measurable reduction (target: >70%) in success rate against adversarial corpus

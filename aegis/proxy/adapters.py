@@ -6,7 +6,7 @@ Each adapter knows how to:
        provider's wire format for upstream forwarding.
     3. Parse the provider's response into a NormalizedResponse.
 
-Adapters are intentionally thin — all decision logic lives in the orchestrator.
+Adapters are intentionally thin, all decision logic lives in the orchestrator.
 """
 
 from __future__ import annotations

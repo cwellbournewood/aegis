@@ -100,7 +100,7 @@ def test_lowest_level_picks_minimum(session):
 def test_derive_child_inherits_provenance(session):
     parent = tag("untrusted email", Origin.TOOL, session.hmac_key, session.session_id)
     child = derive_child(parent, "summary of email", Origin.AGENT, session.hmac_key)
-    # Child level inherits parent's level (L0) — taint propagation.
+    # Child level inherits parent's level (L0), taint propagation.
     assert child.level == Level.L0
     assert parent.chunk_id in child.parents
     assert verify(child, session.hmac_key, expected_session_id=session.session_id)

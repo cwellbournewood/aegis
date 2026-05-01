@@ -8,7 +8,7 @@ Usage:
     session = aegis.session.create(user_intent="summarize my latest invoice email")
     session.capabilities.mint("read_email", constraints={"limit": {"kind": "max_len", "value": 5}})
 
-    # Forward LLM calls through AEGIS — point your existing client at session.proxy_url
+    # Forward LLM calls through AEGIS, point your existing client at session.proxy_url
     import anthropic
     client = anthropic.Anthropic(base_url=session.proxy_url, api_key="...")
     resp = client.messages.create(

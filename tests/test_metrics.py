@@ -85,7 +85,7 @@ def test_metrics_track_canary_leak_when_response_includes_token(client, monkeypa
 
     body = c.get("/metrics").text
     assert "aegis_canary_leaks_total " in body or "aegis_canary_leaks_total{" in body
-    # The metric line itself is "aegis_canary_leaks_total <value>" — find the value.
+    # The metric line itself is "aegis_canary_leaks_total <value>", find the value.
     found_value = False
     for line in body.splitlines():
         if line.startswith("aegis_canary_leaks_total ") and not line.startswith("# "):

@@ -1,7 +1,7 @@
 """Tests for the graceful (soft) tool-call BLOCK response surface.
 
 When AEGIS blocks a tool call, the agent should receive a structured
-"tool denied" message it can recover from — not an HTTP 451 with technical
+"tool denied" message it can recover from, not an HTTP 451 with technical
 reason JSON. This is Surface 1 of the design (end-user invisibility).
 """
 
@@ -93,7 +93,7 @@ def test_anthropic_tool_call_block_returns_200_with_denied_text(client, monkeypa
 
 
 def test_canary_leak_returns_hard_block_451(client, monkeypatch):
-    """Canary leaks are NOT eligible for soft block — they indicate the model
+    """Canary leaks are NOT eligible for soft block, they indicate the model
     has been compromised, so we hard-block."""
     c, orch = client
     sess = orch.get_or_create_session(upstream="anthropic", session_id=None, user_intent="hi")

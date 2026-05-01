@@ -204,7 +204,7 @@ def test_capability_minted_in_one_session_useless_in_another(client):
             "aegis": {"session_id": s2["session_id"], "capability_tokens": [cap["token"]]},
         },
     )
-    # The dry-run upstream returns no tool calls, so no capability is consumed —
+    # The dry-run upstream returns no tool calls, so no capability is consumed .
     # but we directly verify that even if a tool call were proposed, the token
     # would fail (different session_id binding).
     body = resp.json()
@@ -217,7 +217,7 @@ def test_capability_minted_in_one_session_useless_in_another(client):
 
 
 def test_proxy_does_not_follow_aegis_extension_in_dry_run(client):
-    """In dry-run mode the proxy must not call any external URL — even if the
+    """In dry-run mode the proxy must not call any external URL, even if the
     request body contains an `aegis.dry_run` claim."""
     c, _ = client
     resp = c.post(
@@ -281,7 +281,7 @@ def test_unknown_path_404(client):
 
 
 def test_concurrent_session_creations_distinct(client):
-    """Hammer the session endpoint — all returned IDs must be unique."""
+    """Hammer the session endpoint, all returned IDs must be unique."""
     c, _ = client
     import concurrent.futures
 

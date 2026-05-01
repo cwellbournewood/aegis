@@ -25,7 +25,7 @@ def _derive_master_key() -> bytes:
 
     Production deployments should set AEGIS_MASTER_KEY (hex-encoded 32 bytes)
     or AEGIS_MASTER_KEY_FILE. If neither is set, a fresh ephemeral key is used
-    so dev runs don't fail — but session keys won't survive a restart.
+    so dev runs don't fail, but session keys won't survive a restart.
     """
     env_key = os.environ.get("AEGIS_MASTER_KEY")
     if env_key:

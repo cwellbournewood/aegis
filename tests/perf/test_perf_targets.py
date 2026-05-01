@@ -5,16 +5,16 @@ The RFP specifies:
     - Added p99 latency < 250ms (hard cap < 400ms)
     - Throughput > 100 req/s on 4 vCPU
 
-We measure against the *idle proxy* — the absolute time taken by the
+We measure against the *idle proxy*, the absolute time taken by the
 orchestrator pipeline excluding any upstream LLM call. The targets here are
 *generous* (3-10x slacker than RFP) because:
 
-  1. CI runners have wildly variable performance — GitHub Actions free tier is
+  1. CI runners have wildly variable performance. GitHub Actions free tier is
      a noisy two-vCPU shared host.
   2. We want to catch *regressions* (10x slowdowns), not litigate the absolute.
 
 If you want to compare against the RFP targets exactly, run the dedicated
-bench-perf CLI on a quiet machine — it reports unfiltered numbers.
+bench-perf CLI on a quiet machine, it reports unfiltered numbers.
 """
 
 from __future__ import annotations
@@ -73,7 +73,7 @@ def test_four_tool_calls_workload_within_budget():
 @pytest.mark.slow
 @pytest.mark.asyncio
 async def test_four_tool_calls_async_within_budget():
-    """The async path runs the 12 gates in parallel — should be similar to sync
+    """The async path runs the 12 gates in parallel, should be similar to sync
     on Python (GIL-bound) but never *worse* than sync."""
     _orch, run = build_async_tool_call_workload(num_tool_calls=4)
     res = await measure_async(run, iterations=100, warmup=10)
@@ -86,7 +86,7 @@ def test_large_context_workload_within_budget():
     _orch, run = build_large_context_workload(num_messages=50)
     res = measure_sync(run, iterations=100, warmup=10)
     print(f"\nLarge context (50 msgs) workload: {res}")
-    # Tagging 50 messages adds linear cost — generous budget.
+    # Tagging 50 messages adds linear cost, generous budget.
     assert res.p99_ms < _budget_ms(500)
 
 

@@ -40,7 +40,7 @@ def test_payload_tamper_detected(tmp_path):
 
 
 def test_hash_field_tamper_detected(tmp_path):
-    """Recompute and substitute the hash with the right algorithm — but you can't
+    """Recompute and substitute the hash with the right algorithm, but you can't
     because you don't know the prev_hash unless you also know everything before."""
     path = _make_log(tmp_path, n=5)
     with open(path, encoding="utf-8") as fh:
@@ -68,7 +68,7 @@ def test_prev_hash_tamper_detected(tmp_path):
 
 
 def test_timestamp_tamper_detected(tmp_path):
-    """Timestamp is part of the hash input — modifying it breaks the chain."""
+    """Timestamp is part of the hash input, modifying it breaks the chain."""
     path = _make_log(tmp_path, n=5)
     with open(path, encoding="utf-8") as fh:
         lines = fh.readlines()
@@ -138,7 +138,7 @@ def test_terminal_entry_swap_detected_via_tip(tmp_path):
 
 
 def test_insertion_at_middle_detected(tmp_path):
-    """Insert a synthetic entry — chain breaks because seq jumps."""
+    """Insert a synthetic entry, chain breaks because seq jumps."""
     path = _make_log(tmp_path, n=5)
     with open(path, encoding="utf-8") as fh:
         lines = fh.readlines()
@@ -169,7 +169,7 @@ def test_reorder_two_entries_detected(tmp_path):
 
 
 def test_concurrent_appends_dont_corrupt_chain(tmp_path):
-    """Append from multiple threads — chain must remain consistent."""
+    """Append from multiple threads, chain must remain consistent."""
     import threading
 
     path = str(tmp_path / "log.jsonl")

@@ -119,7 +119,7 @@ class CapabilityClaims:
 
 @dataclass
 class CapabilityToken:
-    """A serializable capability — opaque to consumers, verified by the Minter."""
+    """A serializable capability, opaque to consumers, verified by the Minter."""
 
     raw: str
     claims: CapabilityClaims
@@ -302,7 +302,7 @@ class CapabilityMinter:
         """Atomic verify-then-consume.
 
         For single-use tokens, the single source of truth is the nonce store's
-        `mark_used` — this method calls it iff the token is otherwise valid.
+        `mark_used`, this method calls it iff the token is otherwise valid.
         Two concurrent callers across processes (with a Redis nonce store)
         will see exactly one of them succeed; the other gets
         `single-use token already consumed`.

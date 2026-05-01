@@ -1,6 +1,6 @@
 """AEGIS Python SDK.
 
-A thin client over the proxy's AEGIS-native endpoints — for minting capability
+A thin client over the proxy's AEGIS-native endpoints, for minting capability
 tokens, creating sessions, and consuming the typed decision objects attached
 to LLM responses.
 """

@@ -14,11 +14,11 @@ AEGIS exposes five distinct interface surfaces. Each is tuned for a different au
 
 ## End user
 
-Tool-call blocks return HTTP 200 with the `tool_use` block rewritten to a structured "denied" message the agent can recover from. End users see the agent's natural-language recovery — for example:
+Tool-call blocks return HTTP 200 with the `tool_use` block rewritten to a structured "denied" message the agent can recover from. End users see the agent's natural-language recovery, for example:
 
 > *"I noticed an instruction in that email asking me to set up forwarding. That looked unusual, so I didn't act on it. Here's the summary you asked for."*
 
-Hard blocks (canary leaks, broken envelopes) return HTTP 451 with a brief non-technical reason — no layer names, scores, or token IDs.
+Hard blocks (canary leaks, broken envelopes) return HTTP 451 with a brief non-technical reason, no layer names, scores, or token IDs.
 
 Implementation: `_is_tool_call_only_block` and `_rewrite_response_with_blocked_tool_results` in [`aegis/proxy/app.py`](../aegis/proxy/app.py). Per-provider rewrite logic for Anthropic, OpenAI, and Google formats.
 
@@ -115,9 +115,9 @@ open http://localhost:8080/aegis/dashboard
 
 Single-page HTML, no external resources, under 50 KB. Polls `/aegis/decisions` every second. Shows:
 
-- Live decision stream — reverse-chronological, color-coded, click-through to full payload JSON
-- Counters — total / allow / warn / block in the current window
-- Block-rate sparkline — last 5 minutes, SVG-rendered
+- Live decision stream, reverse-chronological, color-coded, click-through to full payload JSON
+- Counters, total / allow / warn / block in the current window
+- Block-rate sparkline, last 5 minutes, SVG-rendered
 - Per-layer ALLOW vs BLOCK bars
 - Top blocked tools
 
@@ -206,8 +206,8 @@ Code: [`aegis/log.py`](../aegis/log.py), [`aegis/proxy/orchestrator.py:_log_payl
 
 | You are… | Use… |
 |---|---|
-| An end user | Nothing — AEGIS is invisible to you |
-| A developer building an agent | The Python SDK — `AegisDecision` / `AegisDecisionBlocked` |
+| An end user | Nothing. AEGIS is invisible to you |
+| A developer building an agent | The Python SDK. `AegisDecision` / `AegisDecisionBlocked` |
 | An operator running the proxy | The CLI |
 | A solo dev wanting eyes on it | `/aegis/dashboard` |
 | A SIEM / SOC / compliance team | The JSONL audit log |

@@ -1,13 +1,13 @@
-"""AEGIS — Authenticated Execution Gateway for Injection Security.
+"""AEGIS: Authenticated Execution Gateway for Injection Security.
 
 Open-source, model-agnostic prompt-injection defense gateway for LLM applications.
 
 Five composed defense layers:
-    1. CCPT  — Cryptographic Content Provenance Tags
-    2. Lattice — Bell-LaPadula trust-level enforcement
-    3. Anchor — Intent vector drift detection
-    4. Canary — Decoy honeytoken tripwires
-    5. Capability — Cryptographic tool-call authorization tokens
+    1. CCPT: Cryptographic Content Provenance Tags
+    2. Lattice: Bell-LaPadula trust-level enforcement
+    3. Anchor: intent vector drift detection
+    4. Canary: decoy honeytoken tripwires
+    5. Capability: cryptographic tool-call authorization tokens
 """
 
 from aegis.anchor import AnchorVector, IntentAnchor

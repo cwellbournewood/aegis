@@ -66,8 +66,8 @@ Every request flows through five gates. Each gate emits ALLOW / WARN / BLOCK wit
 
 | File | Responsibility |
 |---|---|
-| `aegis/ccpt.py` | Cryptographic Content Provenance Tags — sign/verify envelopes, taint propagation |
-| `aegis/lattice.py` | Bell-LaPadula flow rules — evaluate causal-origin trust level for each action |
+| `aegis/ccpt.py` | Cryptographic Content Provenance Tags, sign/verify envelopes, taint propagation |
+| `aegis/lattice.py` | Bell-LaPadula flow rules, evaluate causal-origin trust level for each action |
 | `aegis/anchor.py` | Intent embedding + cosine drift detection. Multi-anchor sessions, LRU cache. |
 | `aegis/canary.py` | Per-session canary tokens, normalization-resistant leak scanning |
 | `aegis/capability.py` | HMAC-signed, parameter-constrained capability tokens with atomic `verify_and_consume` |
@@ -80,7 +80,7 @@ Every request flows through five gates. Each gate emits ALLOW / WARN / BLOCK wit
 | `aegis/proxy/orchestrator.py` | Sync + async paths; parallel gate execution via asyncio |
 | `aegis/proxy/adapters.py` | Provider-specific wire format ↔ normalized form |
 | `aegis/proxy/streaming.py` | Per-chunk SSE evaluation with mid-stream BLOCK |
-| `aegis/proxy/app.py` | FastAPI app — upstream-compatible + AEGIS-native + streaming + metrics endpoints |
+| `aegis/proxy/app.py` | FastAPI app, upstream-compatible + AEGIS-native + streaming + metrics endpoints |
 
 ## 4. Trust levels
 
@@ -91,7 +91,7 @@ Every request flows through five gates. Each gate emits ALLOW / WARN / BLOCK wit
 | **L1** | Retrieved / Agent | RAG documents, vector store hits, prior-agent output |
 | **L0** | Tool / Untrusted | Web pages, third-party APIs, email bodies, file uploads |
 
-Causal origin tracking ensures that a tool call's effective level is the *minimum* level among its inputs — a system+user prompt mixed with retrieved L0 content has effective level L0 for purposes of action authorization.
+Causal origin tracking ensures that a tool call's effective level is the *minimum* level among its inputs, a system+user prompt mixed with retrieved L0 content has effective level L0 for purposes of action authorization.
 
 ## 5. Composition example
 
@@ -130,7 +130,7 @@ A new session's key is derived from the master key via HKDF-SHA256 with the sess
 
 ## 7. Why HMAC, not asymmetric crypto
 
-Asymmetric signatures (Ed25519, RSA) are appropriate when the verifier doesn't trust the signer's runtime — for AEGIS, the proxy *is* both signer and verifier. HMAC-SHA256 is faster, simpler, and sufficient for in-process integrity. It also keeps capability tokens compact.
+Asymmetric signatures (Ed25519, RSA) are appropriate when the verifier doesn't trust the signer's runtime, for AEGIS, the proxy *is* both signer and verifier. HMAC-SHA256 is faster, simpler, and sufficient for in-process integrity. It also keeps capability tokens compact.
 
 ## 8. CCPT envelope lifecycle
 
@@ -150,7 +150,7 @@ ccpt.tag(content, origin, session_key, session_id)
 Lattice / Drift / Canary gates evaluate against envelopes
     │
     ▼
-ccpt.strip(env) → payload — what the upstream model sees
+ccpt.strip(env) → payload, what the upstream model sees
     │
     ▼
 Provider adapter renders back to provider-native body
@@ -180,7 +180,7 @@ The model never sees the envelope structure; it sees clean text.
    On invalid: BLOCK with reason
 ```
 
-Tokens are **opaque to the model**. The model can request a tool call but cannot mint a token — the capability flows out-of-band, in the request envelope.
+Tokens are **opaque to the model**. The model can request a tool call but cannot mint a token, the capability flows out-of-band, in the request envelope.
 
 ## 10. Decision log integrity
 
@@ -200,13 +200,13 @@ class NormalizedMessage:
     metadata: dict
 ```
 
-This keeps the orchestrator wire-format-agnostic — adding a new provider is implementing one adapter.
+This keeps the orchestrator wire-format-agnostic, adding a new provider is implementing one adapter.
 
 ## 12. Async + parallel gate execution
 
 The orchestrator exposes both sync (`post_flight`) and async (`post_flight_async`) entry points. The async path runs each per-tool-call gate (lattice, drift, capability) in parallel via `asyncio.gather`, with a top-level canary scan running concurrently.
 
-For pure CPU-bound work the GIL means async parallelism is mostly bookkeeping — but the moment any gate becomes I/O-bound (Redis nonce store, hosted embedder, cross-region capability service), the speedup compounds. The FastAPI proxy uses the async path by default.
+For pure CPU-bound work the GIL means async parallelism is mostly bookkeeping, but the moment any gate becomes I/O-bound (Redis nonce store, hosted embedder, cross-region capability service), the speedup compounds. The FastAPI proxy uses the async path by default.
 
 ```
 Sync path (4 tool calls):
@@ -227,9 +227,9 @@ Async path (4 tool calls):
 Modern agentic apps need streaming. AEGIS's `StreamingEvaluator`:
 
 1. Wraps an async iterator of `StreamChunk`s (text + tool-call deltas).
-2. Per-chunk: NFKC-normalizes text, scans for canary tokens, recursively scans tool-call params. A leak triggers an immediate BLOCK event — the offending chunk is **not forwarded** to the client.
+2. Per-chunk: NFKC-normalizes text, scans for canary tokens, recursively scans tool-call params. A leak triggers an immediate BLOCK event, the offending chunk is **not forwarded** to the client.
 3. End-of-stream: assembles the full response and runs the standard five-layer pipeline as a final pass. Drift / lattice / capability issues that depend on whole-response context are caught here.
-4. Buffers are bounded — long streams use constant memory.
+4. Buffers are bounded, long streams use constant memory.
 
 Provider-specific SSE parsers (`parse_anthropic_sse`, `parse_openai_sse`) extract chunks from upstream byte streams. Adding a new provider's streaming format is one parser function.
 
@@ -240,13 +240,13 @@ For multi-replica HA, the only stateful concern is single-use capability nonces.
 - `MemoryNonceStore` (default): thread-safe, atomic, single-replica.
 - `RedisNonceStore`: uses `SET NX EX` for atomic mark-used across all replicas. Install with `pip install 'aegis-guard[redis]'`.
 
-`CapabilityMinter.verify_and_consume()` is the atomic path — for hot tokens under concurrency, exactly one caller across all replicas successfully consumes the token.
+`CapabilityMinter.verify_and_consume()` is the atomic path, for hot tokens under concurrency, exactly one caller across all replicas successfully consumes the token.
 
 Sessions, the decision log tail, and the LRU embedding cache are per-replica by design. For session-pinning across replicas, use sticky sessions at your reverse proxy or run with stateless capability tokens (set `single_use=False` and rely on tight constraints).
 
 ## 15. Open research questions
 
-Open work — see [ROADMAP.md](../ROADMAP.md) for priority and status:
+Open work, see [ROADMAP.md](../ROADMAP.md) for priority and status:
 
 1. **Intent Anchor false-positive rate on legitimate multi-step tasks.** Open agentic workflows legitimately drift. Mitigation: per-step re-anchoring, task decomposition hooks.
 2. **Canary attrition.** As AEGIS becomes known, attackers will craft canary-aware injections. Mitigation: per-session randomization, multiple canary phrasings, treat as one signal.

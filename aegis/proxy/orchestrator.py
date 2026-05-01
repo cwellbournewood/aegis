@@ -5,7 +5,7 @@ tagging, lattice gate, intent anchor, canary scan, and capability gate into
 one decision, then logs the result.
 
 Provider adapters extract a generic `NormalizedRequest` and `NormalizedResponse`
-and feed them through this orchestrator — keeping all five layers wire-format
+and feed them through this orchestrator, keeping all five layers wire-format
 agnostic.
 
 Both sync (`pre_flight` / `post_flight`) and async (`pre_flight_async` /
@@ -134,7 +134,7 @@ class Orchestrator:
                 session.anchor = self.anchor.anchor(user_intent)
             else:
                 # Multi-anchor accumulation: each new user-intent expression
-                # widens what counts as "aligned" — reduces drift FPs without
+                # widens what counts as "aligned", reduces drift FPs without
                 # weakening detection of clearly-unrelated actions.
                 self.anchor.add_anchor(session.anchor, user_intent)
         return session
@@ -165,7 +165,7 @@ class Orchestrator:
         if self.policy.canary.enabled and session.canaries is not None:
             req = self._inject_canary_block(req, session.canaries)
 
-        # 3. Pre-flight votes — at this stage we mostly establish baseline state.
+        # 3. Pre-flight votes, at this stage we mostly establish baseline state.
         ctx.pre_votes.append(
             Vote(
                 layer="ccpt_verify",
@@ -237,8 +237,9 @@ class Orchestrator:
         decision_start = time.perf_counter()
         votes = self._collect_votes_sync(req, resp, ctx)
         record = self.engine.combine(votes, session_id=ctx.session.session_id, request_id=ctx.request_id)
-        self.log.append(self._log_payload(req, resp, ctx, record))
-        self._record_metrics(req, record, time.perf_counter() - decision_start)
+        elapsed = time.perf_counter() - decision_start
+        self.log.append(self._log_payload(req, resp, ctx, record, elapsed_seconds=elapsed))
+        self._record_metrics(req, record, elapsed)
         return record
 
     async def post_flight_async(
@@ -247,7 +248,7 @@ class Orchestrator:
         resp: NormalizedResponse,
         ctx: ProxyContext,
     ) -> DecisionRecord:
-        """Async variant — runs independent gates in parallel.
+        """Async variant, runs independent gates in parallel.
 
         Latency improvement scales with number of tool calls: a response with
         N tool calls runs lattice / drift / capability for each in parallel
@@ -275,8 +276,9 @@ class Orchestrator:
             )
 
         record = self.engine.combine(votes, session_id=ctx.session.session_id, request_id=ctx.request_id)
-        self.log.append(self._log_payload(req, resp, ctx, record))
-        self._record_metrics(req, record, time.perf_counter() - decision_start)
+        elapsed = time.perf_counter() - decision_start
+        self.log.append(self._log_payload(req, resp, ctx, record, elapsed_seconds=elapsed))
+        self._record_metrics(req, record, elapsed)
         return record
 
     def _collect_votes_sync(
@@ -451,7 +453,7 @@ class Orchestrator:
             return Vote(
                 layer="intent_drift",
                 verdict=Verdict.WARN,
-                reason="no anchor captured for session — drift undetectable",
+                reason="no anchor captured for session, drift undetectable",
                 confidence=0.4,
             )
         action = ProposedAction(
@@ -527,6 +529,7 @@ class Orchestrator:
         resp: NormalizedResponse,
         ctx: ProxyContext,
         record: DecisionRecord,
+        elapsed_seconds: float = 0.0,
     ) -> dict[str, Any]:
         from aegis import __version__
 
@@ -546,6 +549,7 @@ class Orchestrator:
             "reason": record.reason,
             "score": record.score,
             "mode": record.mode.value,
+            "latency_ms": round(elapsed_seconds * 1000.0, 2),
             "votes": {
                 v.layer: {
                     "verdict": v.verdict.value,

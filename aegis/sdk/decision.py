@@ -41,7 +41,7 @@ class AegisVote:
 
 @dataclass(frozen=True)
 class AegisWarning:
-    """A WARN-level signal — the request passed but a gate flagged it.
+    """A WARN-level signal, the request passed but a gate flagged it.
 
     Useful for `permissive` / `balanced` modes where you want to see what
     *would have been* blocked in stricter modes.
@@ -152,7 +152,7 @@ _FIX_HINTS: dict[str, str] = {
     "lattice": (
         "If this action is legitimate, the causal-origin level is too low. "
         "Either upgrade the source (move retrieved content from L0 → L1 by "
-        "adjusting the adapter), or accept the block — L0 should not authorize "
+        "adjusting the adapter), or accept the block. L0 should not authorize "
         "tool calls."
     ),
     "capability": (
@@ -173,13 +173,13 @@ _FIX_HINTS: dict[str, str] = {
     ),
     "canary": (
         "A canary token leaked in the response. This is high-confidence "
-        "evidence of injection — review the audit log for the source content "
+        "evidence of injection, review the audit log for the source content "
         "and quarantine it. False positives here are very rare; investigate "
         "before tuning."
     ),
     "ccpt_verify": (
         "An envelope failed signature verification. This is a configuration or "
-        "tampering bug — investigate the audit log entry; it should never fire "
+        "tampering bug, investigate the audit log entry; it should never fire "
         "during normal operation."
     ),
 }

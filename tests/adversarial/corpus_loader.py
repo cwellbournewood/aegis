@@ -1,4 +1,4 @@
-"""Adversarial corpus loader — thin re-export from aegis.bench.
+"""Adversarial corpus loader, thin re-export from aegis.bench.
 
 The corpus and harness now live inside the installable `aegis.bench` package
 so `aegis bench` works for `pip install`ed users. Tests import from this

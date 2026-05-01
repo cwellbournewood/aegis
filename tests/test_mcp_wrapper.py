@@ -1,6 +1,6 @@
 """Tests for the MCP wrapper.
 
-We don't spawn a real MCP server in tests — instead we drive the wrapper's
+We don't spawn a real MCP server in tests, instead we drive the wrapper's
 inspection logic directly with synthesized JSON-RPC messages.
 """
 
@@ -79,7 +79,7 @@ def test_canary_in_nested_tool_result_caught():
 
 
 def test_zero_width_split_canary_in_mcp_response_caught():
-    """The wrapper inherits canary normalization — split canary tokens are still caught."""
+    """The wrapper inherits canary normalization, split canary tokens are still caught."""
     w = _wrapper()
     t = w.garden.canaries[0].token
     poisoned = t[:6] + "​" + t[6:]  # zero-width space mid-token

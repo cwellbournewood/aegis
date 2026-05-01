@@ -31,7 +31,7 @@ console = Console()
 @click.group()
 @click.version_option(__version__, prog_name="aegis")
 def main() -> None:
-    """AEGIS — Authenticated Execution Gateway for Injection Security."""
+    """AEGIS. Authenticated Execution Gateway for Injection Security."""
 
 
 @main.command("up")
@@ -56,7 +56,7 @@ def up(host: str, port: int, policy_path: str | None, reload: bool, workers: int
         console.print(f"  policy: {policy_path}")
     if "AEGIS_MASTER_KEY" not in os.environ and "AEGIS_MASTER_KEY_FILE" not in os.environ:
         console.print(
-            "[yellow]Warning: no AEGIS_MASTER_KEY set — using ephemeral key. Sessions won't survive restart.[/yellow]"
+            "[yellow]Warning: no AEGIS_MASTER_KEY set, using ephemeral key. Sessions won't survive restart.[/yellow]"
         )
 
     uvicorn.run(
@@ -359,11 +359,11 @@ def verify(log_path: str) -> None:
     """Verify the integrity of a decision log's hash chain."""
     result = verify_log(log_path)
     if result.ok:
-        console.print(f"[green]OK[/green] — verified {result.entries_checked} entries.")
+        console.print(f"[green]OK[/green], verified {result.entries_checked} entries.")
         sys.exit(0)
     else:
         console.print(
-            f"[red]FAIL[/red] — chain broken at entry {result.broken_at} (checked {result.entries_checked}). "
+            f"[red]FAIL[/red], chain broken at entry {result.broken_at} (checked {result.entries_checked}). "
             f"Reason: {result.reason}"
         )
         sys.exit(2)
@@ -423,7 +423,7 @@ def _print_policy_summary(policy: Policy) -> None:
             r.from_level.value,
             r.to,
             f"[{decision_color}]{r.decision.value}[/{decision_color}]",
-            ", ".join(r.require) or "—",
+            ", ".join(r.require) or " ",
             r.reason or "",
         )
     console.print(rt)

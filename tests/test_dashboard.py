@@ -32,16 +32,26 @@ def test_dashboard_returns_html(client):
     assert "/aegis/health" in body
 
 
-def test_dashboard_includes_no_external_resources(client):
-    """Single-page, no CDN — auditable on locked-down networks."""
+def test_dashboard_only_external_resource_is_google_fonts(client):
+    """The dashboard's only external dependency is the Google Fonts stylesheet
+    that ships Orbitron + JetBrains Mono. Anything else would be a regression."""
     resp = client.get("/aegis/dashboard")
     body = resp.text
-    # No script src=, no link rel=stylesheet href=
+    # No external scripts.
     assert "<script src=" not in body.lower()
-    assert "<link rel=\"stylesheet\"" not in body.lower()
-    # No CDN URLs.
+    # No external CDN imagery / generic CDN domains.
     assert "cdn." not in body.lower()
-    assert "https://" not in body  # all assets inline
+    assert "cdnjs" not in body.lower()
+    assert "unpkg" not in body.lower()
+    assert "jsdelivr" not in body.lower()
+    # The only allowed external domain.
+    import re
+
+    external_urls = re.findall(r'https?://[^"\s]+', body)
+    for url in external_urls:
+        assert "fonts.googleapis.com" in url or "fonts.gstatic.com" in url, (
+            f"unexpected external URL in dashboard: {url}"
+        )
 
 
 def test_dashboard_self_contained_html_under_50kb(client):

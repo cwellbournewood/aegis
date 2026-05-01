@@ -56,7 +56,7 @@ def test_canary_split_with_soft_hyphen_caught():
 
 
 def test_canary_with_nfkc_compatibility_chars_caught():
-    """NFKC folds fullwidth digits etc. — but our tokens are pure ASCII so
+    """NFKC folds fullwidth digits etc., but our tokens are pure ASCII so
     this is a no-op for the token itself; the test verifies normalization
     doesn't break legitimate matches."""
     g = CanaryGarden.generate(count=1)

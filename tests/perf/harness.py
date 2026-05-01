@@ -1,7 +1,7 @@
 """Latency / throughput measurement harness.
 
 Used by both `aegis bench-perf` and CI-asserted regression tests. We avoid
-external benchmark deps (pytest-benchmark, asv) — keeping this self-contained
+external benchmark deps (pytest-benchmark, asv), keeping this self-contained
 makes the numbers easy to reason about and the tests easy to read.
 """
 
@@ -140,7 +140,7 @@ def build_simple_text_workload() -> tuple[Orchestrator, Callable[[], None]]:
 
 
 def build_tool_call_workload(num_tool_calls: int = 1) -> tuple[Orchestrator, Callable[[], None]]:
-    """User message + N tool calls — exercises lattice/drift/capability per call."""
+    """User message + N tool calls, exercises lattice/drift/capability per call."""
     p = Policy.default()
     p.log_path = None
     orch = Orchestrator(policy=p)
@@ -182,7 +182,7 @@ def build_tool_call_workload(num_tool_calls: int = 1) -> tuple[Orchestrator, Cal
 
 
 def build_async_tool_call_workload(num_tool_calls: int = 4):
-    """Async variant of the tool-call workload — exercises the parallel orchestrator."""
+    """Async variant of the tool-call workload, exercises the parallel orchestrator."""
     p = Policy.default()
     p.log_path = None
     orch = Orchestrator(policy=p)
@@ -221,7 +221,7 @@ def build_async_tool_call_workload(num_tool_calls: int = 4):
 
 
 def build_large_context_workload(num_messages: int = 50) -> tuple[Orchestrator, Callable[[], None]]:
-    """50-message conversation history — exercises CCPT tagging cost."""
+    """50-message conversation history, exercises CCPT tagging cost."""
     p = Policy.default()
     p.log_path = None
     orch = Orchestrator(policy=p)

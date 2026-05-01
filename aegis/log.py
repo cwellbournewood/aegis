@@ -5,7 +5,7 @@ tamper-evident chain. A verifier walks the file forward and confirms that no
 entry was modified or removed.
 
 A sidecar `<log>.tip` file mirrors the latest seq+hash. `verify_log` cross-checks
-the file's terminal entry against the tip — catching truncation at the end,
+the file's terminal entry against the tip, catching truncation at the end,
 which a chain alone cannot detect.
 """
 
@@ -186,7 +186,7 @@ def verify_log(path: str, *, check_tip: bool = True) -> VerifyResult:
     """Walk the file and verify the hash chain end-to-end.
 
     With check_tip=True (default), also verifies the file's terminal entry
-    against the sidecar `<path>.tip` file — catching truncation that a chain
+    against the sidecar `<path>.tip` file, catching truncation that a chain
     alone cannot detect. Pass check_tip=False to skip when the tip is known
     to be stale (e.g., during forensics on archived logs).
     """

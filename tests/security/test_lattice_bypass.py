@@ -38,7 +38,7 @@ def test_l3_only_input_with_l0_appended_drops_to_l0(session):
 
 
 def test_zero_inputs_treated_as_l0_not_l3():
-    """Empty causal_inputs must NOT default to L3 — that would let an attacker
+    """Empty causal_inputs must NOT default to L3, that would let an attacker
     silently strip envelopes and bypass the gate."""
     gate = LatticeGate()
     v = gate.evaluate([], action_kind="tool_call")
@@ -92,7 +92,7 @@ def test_cannot_skip_lattice_by_passing_only_response_ref_for_tool_call_intent(s
     rf_verdict = gate.evaluate([web], action_kind="response_ref")
     assert tc_verdict.decision == LatticeDecision.BLOCK
     assert rf_verdict.decision == LatticeDecision.WARN  # response_ref is softer
-    # The orchestrator must decide which action_kind applies — it always uses
+    # The orchestrator must decide which action_kind applies, it always uses
     # "tool_call" for tool calls, so this can't be confused at runtime.
 
 
@@ -148,7 +148,7 @@ def test_cannot_attain_l3_just_by_wrapping_in_systemish_text():
 def test_cannot_skip_lattice_via_role_field_alone():
     """Even if the assistant message has role='user', if the orchestrator
     correctly tags origin via the adapter, the lattice still works. This test
-    documents that the *orchestrator* is responsible for correct origin —
+    documents that the *orchestrator* is responsible for correct origin .
     the lattice can only check what it's given."""
     orch = _orch()
     # Simulate an adapter mistake: a "user" role with TOOL origin (i.e.,

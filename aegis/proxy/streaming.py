@@ -15,7 +15,7 @@ streaming with these guarantees:
 
     3. **Bounded buffer.** The streaming evaluator never holds more than the
        configured buffer size in memory. Past content is hashed and discarded
-       once scanned — preserves session memory for long-running streams.
+       once scanned, preserves session memory for long-running streams.
 
 The streaming evaluator wraps an async iterator and yields a stream of decision
 events to the caller. The caller decides how to render those events in their
@@ -106,7 +106,7 @@ class StreamingEvaluator:
         """Drive the upstream chunk stream through per-chunk canary scan.
 
         Yields the chunk events to the caller. On a canary leak, yields a
-        BLOCK event and stops consuming the upstream — the caller is
+        BLOCK event and stops consuming the upstream, the caller is
         responsible for closing the upstream connection.
         """
         garden = self.ctx.session.canaries

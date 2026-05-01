@@ -134,11 +134,11 @@ def test_add_anchor_skips_empty_text():
 
 
 def test_lru_cache_returns_same_array_for_same_input():
-    """Cached embedding is the same numpy array — no recomputation."""
+    """Cached embedding is the same numpy array, no recomputation."""
     intent = IntentAnchor()
     v1 = intent._embed_cached("hello world")
     v2 = intent._embed_cached("hello world")
-    # The cache hands back the same object — fastest possible path.
+    # The cache hands back the same object, fastest possible path.
     assert v1 is v2
 
 

@@ -1,7 +1,7 @@
 """Security tests for cryptographic primitives.
 
 These tests probe the HMAC, HKDF, and constant-time-comparison properties of
-the CCPT and Capability layers. Each test is written as an *attack* — what an
+the CCPT and Capability layers. Each test is written as an *attack*, what an
 adversary with full source-code access would try.
 """
 
@@ -54,13 +54,13 @@ def test_session_key_is_full_length():
 
 
 # ---------------------------------------------------------------------------
-# Master key handling — env / file / weak key rejection
+# Master key handling, env / file / weak key rejection
 # ---------------------------------------------------------------------------
 
 
 def test_short_master_key_rejected(monkeypatch):
     reset_master_key_for_tests(None)
-    monkeypatch.setenv("AEGIS_MASTER_KEY", "deadbeef")  # 4 bytes — too short
+    monkeypatch.setenv("AEGIS_MASTER_KEY", "deadbeef")  # 4 bytes, too short
     with pytest.raises(RuntimeError, match="at least 32 bytes"):
         master_key()
 
@@ -83,7 +83,7 @@ def test_master_key_file_loads_hex(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# HMAC tampering — every field must be covered
+# HMAC tampering, every field must be covered
 # ---------------------------------------------------------------------------
 
 
@@ -101,7 +101,7 @@ def test_swap_nonce_invalidates_signature(session):
     original_sig = e1.sig
     e1.nonce = secrets.token_hex(16)  # different nonce
     assert not verify(e1, session.hmac_key, expected_session_id=session.session_id)
-    # Confirm the sig is the same — only nonce changed — proves nonce is part of HMAC input.
+    # Confirm the sig is the same, only nonce changed, proves nonce is part of HMAC input.
     assert e1.sig == original_sig
 
 
@@ -109,13 +109,13 @@ def test_replay_envelope_to_other_session_fails(session, session_store):
     """An envelope minted for session A must not verify under session B's key."""
     other = session_store.create()
     env = tag("hi", Origin.USER, session.hmac_key, session.session_id)
-    # Forging a new session_id field doesn't help — the HMAC covers it.
+    # Forging a new session_id field doesn't help, the HMAC covers it.
     env.session_id = other.session_id
     assert not verify(env, other.hmac_key, expected_session_id=other.session_id)
 
 
 def test_modified_parents_field_invalidates(session):
-    """Taint propagation correctness — modifying parents must break the sig."""
+    """Taint propagation correctness, modifying parents must break the sig."""
     env = tag("derived", Origin.AGENT, session.hmac_key, session.session_id)
     env.parents = ("forged_parent",)
     assert not verify(env, session.hmac_key, expected_session_id=session.session_id)
@@ -141,7 +141,7 @@ def test_signature_has_full_entropy(session):
 
 @pytest.mark.slow
 def test_signature_compare_is_roughly_constant_time(session):
-    """Probabilistic timing test — verify() should not short-circuit on prefix match.
+    """Probabilistic timing test, verify() should not short-circuit on prefix match.
 
     This is a smell test, not a formal proof. We measure verify time for two
     cases: (a) a sig that mismatches in the first byte, (b) a sig that matches
@@ -166,7 +166,7 @@ def test_signature_compare_is_roughly_constant_time(session):
     early = measure(early_diff)
     late = measure(late_diff)
     ratio = max(early, late) / max(min(early, late), 1e-9)
-    # 5x tolerance — we mostly want to catch 1000x-style early-exit timing leaks.
+    # 5x tolerance, we mostly want to catch 1000x-style early-exit timing leaks.
     assert ratio < 5.0, f"timing ratio {ratio:.2f} suggests non-constant-time compare"
 
 
@@ -190,7 +190,7 @@ def test_capability_signature_forgery_with_other_session_key_fails(session, sess
 
 
 def test_capability_claims_modification_invalidates(session):
-    """Try to expand a capability — change tool name in the encoded body."""
+    """Try to expand a capability, change tool name in the encoded body."""
     minter = CapabilityMinter()
     tok = minter.mint(tool="read", session_id=session.session_id, session_key=session.hmac_key)
     # Surgically swap "read" → "send" in the base64 claims (will break sig).
@@ -216,7 +216,7 @@ def test_capability_claims_modification_invalidates(session):
 
 
 def test_capability_signature_swap_across_two_tokens_fails(session):
-    """Swap signatures between two tokens — both must fail verification."""
+    """Swap signatures between two tokens, both must fail verification."""
     minter = CapabilityMinter()
     t1 = minter.mint(tool="A", session_id=session.session_id, session_key=session.hmac_key)
     t2 = minter.mint(tool="B", session_id=session.session_id, session_key=session.hmac_key)
@@ -231,7 +231,7 @@ def test_capability_signature_swap_across_two_tokens_fails(session):
 
 def test_capability_pre_dated_token_rejected_at_use(session):
     """A token issued in the future is currently allowed (issued_at not enforced)
-    — we accept that, but verify it still expires correctly."""
+   , we accept that, but verify it still expires correctly."""
     minter = CapabilityMinter()
     tok = minter.mint(
         tool="x", session_id=session.session_id, session_key=session.hmac_key, ttl_seconds=1

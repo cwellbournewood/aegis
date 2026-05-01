@@ -1,23 +1,25 @@
 # AEGIS
 
-**Authenticated Execution Gateway for Injection Security.** Open-source, model-agnostic prompt-injection defense gateway for agentic LLM applications.
+**Authenticated Execution Gateway for Injection Security.**
 
-> Pre-1.0 development. APIs and policy schema may change before 1.0. See [WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md) for the 30-second fit check.
+A personal project exploring what happens when you treat prompt injection as a structural problem instead of a content-classification one. Apache-2.0.
 
-## Why
+> Pre-1.0. APIs and policy schema may change before 1.0. See [WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md) for whether it's a fit for what you're doing.
 
-LLMs ingest a single token stream. The boundary between *system instructions*, *user input*, *retrieved documents*, and *tool output* exists only as a convention enforced by the application layer — never by the model. Defenses built on natural-language filtering can be bypassed by sufficiently creative natural language.
+## Why this exists
 
-AEGIS imposes structure the LLM cannot impose on itself, treating prompt injection as a *provenance, authorization, and intent-drift* problem — the same lens used to defeat SQL injection, CSRF, and privilege escalation.
+LLMs ingest a single token stream. The boundary between system instructions, user input, retrieved documents, and tool output is a convention enforced by the application layer, not by the model. Defenses based on filtering natural language can be bypassed by sufficiently creative natural language.
+
+I wanted to see what a defense built on cryptographic provenance and capability authorization would actually look like in code. AEGIS is the result. The contribution is the composition; none of the individual ideas are novel.
 
 ## Five composed layers
 
 | Layer | What it does |
 |---|---|
 | **CCPT** | Every context chunk wrapped in an HMAC-signed envelope binding origin and trust level |
-| **Trust Lattice** | Bell-LaPadula info-flow rules — L0/L1 content cannot authorize tool calls |
+| **Trust Lattice** | Bell-LaPadula info-flow rules. L0/L1 content cannot authorize tool calls |
 | **Intent Anchor** | User's request is embedded; proposed actions are checked for semantic drift |
-| **Canary Tripwires** | Decoy honeytoken instructions in the system prompt; leakage = high-confidence attack |
+| **Canary Tripwires** | Decoy honeytoken instructions in the system prompt; leakage is high-confidence attack evidence |
 | **Capability Tokens** | Tool calls require cryptographic, parameter-constrained tokens the model cannot mint |
 
 A Decision Engine combines per-layer ALLOW/WARN/BLOCK votes per a configurable policy. Every decision is recorded in a hash-chained, append-only audit log.
@@ -25,13 +27,14 @@ A Decision Engine combines per-layer ALLOW/WARN/BLOCK votes per a configurable p
 ## Sidecar deployment
 
 ```
-   Your agent ──▶ AEGIS proxy (5 layers) ──▶ LLM provider
-                       │
-                       ▼
-                 Decision log
+   Your agent
+      ↓
+   AEGIS proxy (5 layers)
+      ↓
+   LLM provider
 ```
 
-Either point your existing OpenAI / Anthropic / Google client at the AEGIS proxy URL, or use the AEGIS SDK for capability minting and intent declaration.
+Either point your existing OpenAI, Anthropic, or Google client at the AEGIS proxy URL, or use the AEGIS SDK for capability minting and intent declaration.
 
 ## Quickstart
 
@@ -71,7 +74,7 @@ For Claude Code, Cursor, or other MCP-using agents, also wrap your MCP servers:
 claude mcp add github "aegis mcp-wrap --policy strict -- npx @modelcontextprotocol/server-github"
 ```
 
-Full deployment cases: [docs/QUICKSTART.md](docs/QUICKSTART.md).
+Full deployment cases in [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 ## Install
 
@@ -136,7 +139,7 @@ capability:
 log_path: ./aegis-decisions.log
 ```
 
-Full annotated default: [`aegis/policies/default.yaml`](aegis/policies/default.yaml).
+Full annotated default in [`aegis/policies/default.yaml`](aegis/policies/default.yaml).
 
 | Variable | Purpose |
 |---|---|
@@ -144,7 +147,7 @@ Full annotated default: [`aegis/policies/default.yaml`](aegis/policies/default.y
 | `AEGIS_MASTER_KEY_FILE` | Path to a file containing the master key |
 | `AEGIS_POLICY_PATH` | Path to a policy YAML |
 | `AEGIS_ANTHROPIC_URL` / `AEGIS_OPENAI_URL` / `AEGIS_GOOGLE_URL` | Override upstream URLs |
-| `AEGIS_DRY_RUN=1` | Don't forward upstream — return synthetic responses |
+| `AEGIS_DRY_RUN=1` | Don't forward upstream; return synthetic responses |
 
 ## Supported providers
 
@@ -154,7 +157,7 @@ Full annotated default: [`aegis/policies/default.yaml`](aegis/policies/default.y
 | OpenAI GPT-4o / GPT-4.1 / GPT-5 | Chat Completions + streaming |
 | Google Gemini 1.5+ / 2.x | `generateContent` |
 
-Open-weights / Ollama / vLLM are not yet supported.
+Open-weights, Ollama, and vLLM are not yet supported.
 
 ## Performance
 
@@ -178,9 +181,9 @@ Each chunk is canary-scanned as it arrives. A leak triggers an immediate `aegis_
 
 ## Observability
 
-`GET /metrics` — Prometheus exposition with request counters by upstream/decision, per-layer vote counts, canary leak counter, capability lifecycle counters, end-to-end and per-gate latency histograms, active sessions and log-entries gauges.
+`GET /metrics` returns Prometheus exposition with request counters by upstream and decision, per-layer vote counts, canary leak counter, capability lifecycle counters, end-to-end and per-gate latency histograms, plus active-sessions and log-entries gauges.
 
-`GET /aegis/dashboard` — single-page operator UI: live decision stream, block-rate sparkline, per-layer ALLOW/BLOCK bars, top blocked tools.
+`GET /aegis/dashboard` is a single-page operator UI: live decision stream, block-rate sparkline, per-layer ALLOW/BLOCK bars, top blocked tools.
 
 ## Security properties
 
@@ -198,23 +201,23 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for the full threat model and d
 
 ## What AEGIS is not
 
-- Not a model — no alignment, no RLHF.
-- Not a WAF — only inspects the LLM API path.
-- Not a substitute for least-privilege tool design — it complements it.
-- Not zero false-negative — the goal is to raise attacker cost dramatically while keeping false positives manageable.
+- Not a model. No alignment, no RLHF.
+- Not a WAF. Only inspects the LLM API path.
+- Not a substitute for least-privilege tool design; it complements it.
+- Not zero false-negative. The goal is to raise attacker cost dramatically while keeping false positives manageable.
 
 ## Documentation
 
-- [Quickstart](docs/QUICKSTART.md) — three deployment cases with copy-paste code
-- [Who should use it](docs/WHO_SHOULD_USE.md) — fit criteria and decision rubric
-- [Mental model](docs/MENTAL_MODEL.md) — each layer explained
-- [Interfaces](docs/INTERFACES.md) — end user, SDK, CLI, dashboard, audit log
-- [Architecture](docs/ARCHITECTURE.md) — the decision pipeline
-- [Threat model](docs/THREAT_MODEL.md) — what AEGIS defends against
-- [Operator guide](docs/OPERATOR.md) — deployment, tuning, observability
-- [Contributing](docs/CONTRIBUTING.md) — code style, evaluation criteria
-- [Roadmap](ROADMAP.md) — work toward 1.0
+- [Quickstart](docs/QUICKSTART.md): three deployment cases with copy-paste code
+- [Who should use it](docs/WHO_SHOULD_USE.md): fit check
+- [Mental model](docs/MENTAL_MODEL.md): each layer explained
+- [Interfaces](docs/INTERFACES.md): end user, SDK, CLI, dashboard, audit log
+- [Architecture](docs/ARCHITECTURE.md): the decision pipeline
+- [Threat model](docs/THREAT_MODEL.md): what AEGIS defends against
+- [Operator guide](docs/OPERATOR.md): deployment, tuning, observability
+- [Contributing](docs/CONTRIBUTING.md): code style, evaluation criteria
+- [Roadmap](ROADMAP.md): work toward 1.0
 
 ## License
 
-[Apache-2.0](LICENSE). AEGIS does not claim that any single layer is novel in isolation; the contribution is the composition.
+[Apache-2.0](LICENSE). None of the individual layers are novel in isolation; the contribution is the composition.

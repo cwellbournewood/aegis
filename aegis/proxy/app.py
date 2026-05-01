@@ -1,4 +1,4 @@
-"""FastAPI application — exposes upstream-compatible and AEGIS-native endpoints."""
+"""FastAPI application, exposes upstream-compatible and AEGIS-native endpoints."""
 
 from __future__ import annotations
 
@@ -281,7 +281,7 @@ async def _proxied_call(app: FastAPI, request: Request, upstream: str) -> Any:
     norm_req = adapter.parse_request(body, headers=dict(request.headers))
     norm_req, ctx = orch.pre_flight(norm_req)
 
-    # Forward upstream — unless DRY_RUN is set or there's no API URL configured.
+    # Forward upstream, unless DRY_RUN is set or there's no API URL configured.
     dry_run = os.environ.get("AEGIS_DRY_RUN") == "1" or body.get("aegis", {}).get("dry_run")
 
     if dry_run:
@@ -317,7 +317,7 @@ async def _proxied_call(app: FastAPI, request: Request, upstream: str) -> Any:
         #      more tool calls failing the gates. We keep the response 200 and
         #      replace the offending tool_use blocks with a structured "denied"
         #      block the agent can recover from. This is the surface 1 design
-        #      goal — AEGIS hides unless a hard block is genuinely needed.
+        #      goal. AEGIS hides unless a hard block is genuinely needed.
         #   2. Hard block (HTTP 451): the request itself is broadly suspect
         #      (e.g., canary leak in the response text, or the entire prompt
         #      fails CCPT verification). The client gets a structured error.
@@ -332,7 +332,7 @@ async def _proxied_call(app: FastAPI, request: Request, upstream: str) -> Any:
             return sanitized
 
         return JSONResponse(
-            status_code=451,  # Unavailable for Legal Reasons — close-enough fit for "blocked by policy"
+            status_code=451,  # Unavailable for Legal Reasons, close-enough fit for "blocked by policy"
             content={
                 "error": {
                     "type": "aegis_blocked",
@@ -469,7 +469,7 @@ def _rewrite_response_with_blocked_tool_results(
 ) -> JSONResponse:
     """Replace tool_use blocks with provider-native 'tool denied' blocks.
 
-    This lets agentic clients recover gracefully — the agent sees that the tool
+    This lets agentic clients recover gracefully, the agent sees that the tool
     call was denied (with a structured reason) and can route around it. AEGIS
     stays out of the user-facing surface unless the block is genuinely hard.
     """
@@ -563,14 +563,14 @@ async def _forward(app: FastAPI, upstream: str, request: Request, body: dict[str
 
 
 def _stub_upstream_response(upstream: str, body: dict[str, Any]) -> dict[str, Any]:
-    """Synthetic upstream response for AEGIS_DRY_RUN — useful for testing/demo."""
+    """Synthetic upstream response for AEGIS_DRY_RUN, useful for testing/demo."""
     if upstream == "anthropic":
         return {
             "id": "msg_dryrun",
             "type": "message",
             "role": "assistant",
             "model": body.get("model", "claude-stub"),
-            "content": [{"type": "text", "text": "[AEGIS dry run — no upstream call made]"}],
+            "content": [{"type": "text", "text": "[AEGIS dry run, no upstream call made]"}],
             "stop_reason": "end_turn",
         }
     if upstream == "openai":
@@ -581,7 +581,7 @@ def _stub_upstream_response(upstream: str, body: dict[str, Any]) -> dict[str, An
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": "[AEGIS dry run — no upstream call made]"},
+                    "message": {"role": "assistant", "content": "[AEGIS dry run, no upstream call made]"},
                     "finish_reason": "stop",
                 }
             ],
@@ -589,7 +589,7 @@ def _stub_upstream_response(upstream: str, body: dict[str, Any]) -> dict[str, An
     return {
         "candidates": [
             {
-                "content": {"parts": [{"text": "[AEGIS dry run — no upstream call made]"}], "role": "model"},
+                "content": {"parts": [{"text": "[AEGIS dry run, no upstream call made]"}], "role": "model"},
                 "finishReason": "STOP",
             }
         ],

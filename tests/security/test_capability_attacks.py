@@ -41,7 +41,7 @@ def test_token_for_one_tool_cannot_authorize_another(session):
 
 def test_constraint_with_extra_unknown_param_rejected_or_constrained(session):
     """If the capability constrains 'to' but the attacker adds a 'cc' param
-    that's not constrained — the token should still validate for the
+    that's not constrained, the token should still validate for the
     constrained params. Extra params are an application-level concern;
     document this and test that constrained params still hold."""
     minter = CapabilityMinter()
@@ -81,7 +81,7 @@ def test_constraint_with_extra_unknown_param_rejected_or_constrained(session):
 
 
 def test_regex_constraint_anchors_full_match(session):
-    """`re.fullmatch` is anchored — partial matches don't slip through."""
+    """`re.fullmatch` is anchored, partial matches don't slip through."""
     minter = CapabilityMinter()
     tok = minter.mint(
         tool="get",
@@ -157,7 +157,7 @@ def test_consume_called_twice_is_idempotent(session):
     tok = minter.mint(tool="x", session_id=session.session_id, session_key=session.hmac_key)
     v1 = minter.verify(tok.raw, session.hmac_key, ProposedCall("x", {}), expected_session_id=session.session_id)
     minter.consume(v1.token)
-    minter.consume(v1.token)  # idempotent — set.add of same nonce is fine
+    minter.consume(v1.token)  # idempotent, set.add of same nonce is fine
     v2 = minter.verify(tok.raw, session.hmac_key, ProposedCall("x", {}), expected_session_id=session.session_id)
     assert not v2.valid
 

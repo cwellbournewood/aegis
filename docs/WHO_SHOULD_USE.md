@@ -1,6 +1,8 @@
 # Who should use AEGIS
 
-## 30-second decision
+This is a personal project. I'd rather you skip it than deploy it for the wrong use case and conclude it doesn't work.
+
+## 30-second fit check
 
 Three yes/no questions:
 
@@ -10,9 +12,9 @@ Three yes/no questions:
 
 | Answers | Recommendation |
 |---|---|
-| Three yes | Deploy AEGIS. |
-| Two yes | Run in `permissive` mode for the audit trail. Tighten over time. |
-| One yes or fewer | Use simpler tools — content classifiers and basic input validation cover your case. |
+| Three yes | AEGIS is probably useful. Try it. |
+| Two yes | Run it in `permissive` mode for the audit trail. Tighten over time. |
+| One yes or fewer | Use simpler tools. Content classifiers and basic input validation cover your case. |
 
 ## The three conditions, expanded
 
@@ -22,55 +24,54 @@ AEGIS's strongest layer is capability tokens. If there are no consequential tool
 
 ### 2. The LLM ingests untrusted content as part of normal operation
 
-Indirect injection enters through the surfaces where attacker-controlled text reaches the model — RAG, web fetch, email reading, MCP calls. If your LLM only sees content you wrote yourself, you don't need AEGIS for indirect injection. (Direct injection from your own users is still covered, but standard application security suffices for that surface alone.)
+Indirect injection enters through the surfaces where attacker-controlled text reaches the model: RAG, web fetch, email reading, MCP calls. If your LLM only sees content you wrote yourself, you don't need AEGIS for indirect injection. Direct injection from your own users is still covered, but standard application security is enough for that surface alone.
 
 ### 3. The consequences of a successful attack are non-trivial
 
 Worth the modest latency overhead and engineering effort to prevent.
 
-## Common deployment profiles
+## Where it fits naturally
 
-- **Enterprise AI platform teams.** Internal agents (support, sales, ops) with an MLSecOps function that needs an audit trail and a defensible answer for SOC 2 / ISO 27001 / EU AI Act / NIST AI RMF.
-- **Agentic SaaS vendors.** AI assistants for legal, finance, healthcare, DevOps that take actions on customer data. Multi-tenant, high-stakes, customers ask security questions.
-- **Builders of MCP-using agents.** Anyone running Claude Code, Cursor, or Cline with third-party MCP servers connected. Use [`aegis mcp-wrap`](QUICKSTART.md#case-2--claude-code-the-harder-case).
-- **Red teams and AI security researchers.** Need a structural baseline to test attacks against.
-- **Regulated-industry pilots.** Banks, hospitals, government agencies that cannot ship without a documented threat model and a control to point to.
+- An agent (yours or someone else's, like Claude Code) that calls third-party MCP servers. The MCP wrap path is where AEGIS gives strong protection to a setup that's otherwise wide-open.
+- An internal agent that reads tickets, emails, or CRM data and can take actions on them.
+- A RAG agent over user-uploaded documents that can write to anything.
+- A research project on LLM security that needs a structural baseline to test attacks against.
 
 ## Infrastructure
 
 - 2 vCPU, 1 GB RAM, Docker. No GPU, no Kubernetes required.
-- Default hashing embedder is essentially free. The optional `sentence-transformers` extra adds an ~80 MB CPU model.
+- Default hashing embedder is essentially free. Optional `sentence-transformers` extra adds an ~80 MB CPU model.
 
 Deployment shapes:
 
 | Shape | When |
 |---|---|
 | **Localhost sidecar** | Individual developer with Claude Code + MCP. ~5 minutes to install. |
-| **Per-pod sidecar** | Kubernetes — one AEGIS container next to each application pod. |
+| **Per-pod sidecar** | Kubernetes; one AEGIS container next to each application pod. |
 | **Shared internal gateway** | Multi-tenant platforms; per-tenant key derivation via HKDF. |
 | **Wrapped MCP** | Each MCP server fronted by `aegis mcp-wrap`. Defends the boundary where attacker-controlled content actually enters. |
 
 Not a fit:
 
-- **Serverless functions** with cold-start sensitivity. Python startup and (if enabled) embedding-model load are non-zero.
-- **Mobile / embedded.** A future native-language port is plausible but not in scope for 1.0.
+- Serverless functions with cold-start sensitivity. Python startup and (if enabled) embedding-model load are non-zero.
+- Mobile or embedded devices. A future native-language port is plausible but not in scope for 1.0.
 
 ## When AEGIS is the wrong tool
 
-- Pure chatbots — use a content classifier.
-- Agents that only see content you authored — standard application security.
-- Pre-product prototypes — come back when you know what your agent does.
-- Looking for a complete AI security solution — AEGIS is the action-authorization layer, not a substitute for content classification, PII detection, or jailbreak filtering.
+- Pure chatbots. Use a content classifier.
+- Agents that only see content you authored. Standard application security.
+- Pre-product prototypes. Come back when you know what your agent does.
+- Looking for a complete AI security stack. AEGIS is the action-authorization piece, not a substitute for content classification, PII detection, or jailbreak filtering.
 
 ## Compared to other tools
 
 | Tool | Approach |
 |---|---|
-| **Lakera, Pangea, ProtectAI** | Content classification — "does this text look malicious?" |
-| **NeMo Guardrails** | Conversation-flow rules, output validation. |
-| **Rebuff** | Canary tokens + prompt detection. |
-| **OWASP / NIST AI RMF** | Frameworks, not tools. |
-| **AEGIS** | Structural authorization + provenance + drift + canary, composed. |
+| Lakera, Pangea, ProtectAI | Content classification: "does this text look malicious?" |
+| NeMo Guardrails | Conversation-flow rules, output validation. |
+| Rebuff | Canary tokens + prompt detection. |
+| OWASP / NIST AI RMF | Frameworks, not tools. |
+| AEGIS | Structural authorization + provenance + drift + canary, composed. |
 
 AEGIS is complementary to most of these, not a replacement.
 

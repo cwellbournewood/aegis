@@ -13,7 +13,7 @@ MCP messages are JSON-RPC 2.0 over stdio, one JSON object per line. We:
     4. Forward sanitized messages back to the agent over our stdout.
 
 The wrapper does NOT need a network round-trip to the AEGIS proxy for canary
-scanning — it can use a local `CanaryGarden`. For richer integration (full
+scanning, it can use a local `CanaryGarden`. For richer integration (full
 five-layer decision per tool call), the wrapper can talk to a configured AEGIS
 proxy URL and use its `/aegis/session` + `/aegis/capability` endpoints.
 
@@ -40,7 +40,7 @@ from aegis.metrics import metrics
 
 
 def _emit_log(level: str, msg: str, **fields: Any) -> None:
-    """Structured stderr logging — stderr is for the agent's host, not the MCP channel."""
+    """Structured stderr logging, stderr is for the agent's host, not the MCP channel."""
     record = {"ts": time.time(), "level": level, "msg": msg, "src": "aegis-mcp-wrap", **fields}
     print(json.dumps(record, separators=(",", ":")), file=sys.stderr, flush=True)
 
@@ -194,7 +194,7 @@ class MCPWrapper:
 
         method = msg.get("method", "")
         # In JSON-RPC, server→agent responses are typed by `result`/`error`,
-        # not `method` — but tool-call results are typically tagged with the
+        # not `method`, but tool-call results are typically tagged with the
         # tools/call request id.
         is_tool_call_response = (
             "result" in msg and isinstance(msg["result"], dict) and (
@@ -216,7 +216,7 @@ class MCPWrapper:
         if hits:
             _emit_log(
                 "warn",
-                "canary leak detected in MCP tool response — replacing with error",
+                "canary leak detected in MCP tool response, replacing with error",
                 hits=len(hits),
                 first_location=hits[0].location,
             )

@@ -51,7 +51,7 @@ def default_rules() -> list[FlowRule]:
     """Default lattice policy.
 
     L0 → tool_call    : BLOCK   (untrusted content can never authorize actions)
-    L1 → tool_call    : WARN    (RAG content gets a warn signal — capability tokens still required)
+    L1 → tool_call    : WARN    (RAG content gets a warn signal, capability tokens still required)
     L2 → tool_call    : ALLOW   (authenticated user can authorize, with capability token)
     L3 → tool_call    : ALLOW   (system can authorize)
     L0 → response_ref : WARN    (model citing L0 content gets a soft signal)
@@ -77,7 +77,7 @@ class LatticeVerdict:
 class LatticeGate:
     """Evaluates flow rules against CCPT-tagged inputs.
 
-    The gate does not make capability decisions itself — it can mark a flow
+    The gate does not make capability decisions itself, it can mark a flow
     as needing a `capability_token`, which is then enforced by the Capability
     Gate. This separation of concerns is deliberate: the lattice decides
     *whether the trust shape is right*, and capability tokens decide *whether
@@ -92,7 +92,7 @@ class LatticeGate:
         causal_inputs: list[CCPTEnvelope],
         action_kind: str = "tool_call",
     ) -> LatticeVerdict:
-        # Action with no traceable causal origin is suspicious — treat as L0.
+        # Action with no traceable causal origin is suspicious, treat as L0.
         effective = (
             Level.L0 if not causal_inputs else min(env.level for env in causal_inputs)
         )

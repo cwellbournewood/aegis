@@ -1,6 +1,6 @@
 """Prometheus-format metrics for AEGIS.
 
-Self-contained Prometheus exposition — no external prometheus_client dependency.
+Self-contained Prometheus exposition, no external prometheus_client dependency.
 Counters, histograms, and gauges live in a process-local registry and are
 serialized on demand by the `/metrics` endpoint.
 
@@ -19,7 +19,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
-# Default histogram buckets in seconds — covers typical AEGIS overhead range.
+# Default histogram buckets in seconds, covers typical AEGIS overhead range.
 _DEFAULT_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.5, 1.0, 2.5, 5.0, float("inf"))
 
 

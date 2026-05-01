@@ -102,7 +102,7 @@ def test_verify_and_consume_atomically_rejects_replay(session):
     )
     assert v1.valid
 
-    # Second call with the same token MUST fail — atomic mark_used returned False.
+    # Second call with the same token MUST fail, atomic mark_used returned False.
     v2 = minter.verify_and_consume(
         tok.raw, session.hmac_key, ProposedCall("x", {}), expected_session_id=session.session_id
     )

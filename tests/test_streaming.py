@@ -68,7 +68,7 @@ async def test_streaming_blocks_on_canary_leak_in_text_chunk():
     chunks = [
         StreamChunk(text="Sure, here's"),
         StreamChunk(text=f" the secret: {leaked_token}"),
-        StreamChunk(text=" — done.", done=True),
+        StreamChunk(text=", done.", done=True),
     ]
 
     evaluator = StreamingEvaluator(orch, augmented, ctx)
@@ -82,7 +82,7 @@ async def test_streaming_blocks_on_canary_leak_in_text_chunk():
     assert block_events[0].canary_hit.canary.token == leaked_token
 
     # Critical: the leaking chunk must be BLOCKed before being emitted to the
-    # client — only the safe "Sure, here's" chunk is forwarded.
+    # client, only the safe "Sure, here's" chunk is forwarded.
     chunk_events = [e for e in events if e.kind == "chunk"]
     assert len(chunk_events) == 1
     assert leaked_token not in chunk_events[0].chunk.text

@@ -11,7 +11,7 @@ configure a hosted embedder via `hosted-embed`.
 
 False-positive mitigation:
     - Multi-anchor: a session can accumulate multiple anchor vectors (one per
-      user turn). Drift is scored against the *closest* anchor — so multi-step
+      user turn). Drift is scored against the *closest* anchor, so multi-step
       tasks don't trigger drift just because the user changed sub-task.
     - LRU embedding cache: repeated text inputs hit the embedder once per
       process, reducing latency for chatty agentic loops.
@@ -59,7 +59,7 @@ class AnchorVector:
         norm = float(np.linalg.norm(vector))
         if norm > 0:
             vector = vector / norm
-        # De-dup on text — repeated identical user messages don't multiply anchors.
+        # De-dup on text, repeated identical user messages don't multiply anchors.
         if text in self.texts:
             return
         self.texts.append(text)
@@ -190,7 +190,7 @@ class DriftScore:
 
 class _LRUCache:
     """Tiny thread-safe LRU for embedded vectors. Avoids re-embedding the same
-    text within a process — repeated user messages and tool-call summaries are
+    text within a process, repeated user messages and tool-call summaries are
     common in agentic loops."""
 
     def __init__(self, capacity: int = 1024) -> None:
@@ -254,7 +254,7 @@ class IntentAnchor:
     def add_anchor(self, anchor: AnchorVector, additional_text: str) -> None:
         """Mutate an existing anchor to include a new user-intent text.
 
-        Used by the orchestrator when a user adds a new turn — the proposed
+        Used by the orchestrator when a user adds a new turn, the proposed
         action will be scored against the *closest* anchor across the session,
         which substantially reduces FPs on legitimate multi-step workflows.
         """

@@ -2,7 +2,7 @@
 
 Wraps every chunk of context that flows through the proxy in an HMAC-signed
 envelope binding origin, trust level, and session. The envelope is *internal*
-to the proxy pipeline — it is stripped before the upstream model ever sees the
+to the proxy pipeline, it is stripped before the upstream model ever sees the
 prompt, so it doesn't pollute the context window or confuse the model.
 
 The envelope exists to:
@@ -113,7 +113,7 @@ def _canonical_signing_input(env: CCPTEnvelope) -> bytes:
     """Stable byte sequence over which we compute the HMAC.
 
     Any field that affects authorization or routing must be covered. We
-    deliberately keep this canonical form simple — JSON with sorted keys
+    deliberately keep this canonical form simple. JSON with sorted keys
     over a fixed set of fields. Adding a new field requires bumping ccpt_v.
     """
     body = {
@@ -165,7 +165,7 @@ def verify(env: CCPTEnvelope, session_key: bytes, expected_session_id: str | Non
 
 
 def strip(env: CCPTEnvelope) -> str:
-    """Return only the raw payload — the form the upstream model receives."""
+    """Return only the raw payload, the form the upstream model receives."""
     return env.payload
 
 
@@ -180,7 +180,7 @@ def derive_child(
 
     Used for taint propagation: when content derived from an L0 source is
     rephrased or summarized, the child inherits the parent's chunk_id in
-    its `parents` tuple. The child's level defaults to the parent's level —
+    its `parents` tuple. The child's level defaults to the parent's level .
     callers can override only with explicit caution.
     """
     inherited_level = level if level is not None else parent.level

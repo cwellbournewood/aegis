@@ -55,7 +55,7 @@ Run behind a reverse proxy (nginx, Caddy, ALB) with TLS termination and rate lim
 
 ## 3. Wire your application
 
-### Option A — point existing client at AEGIS
+### Option A, point existing client at AEGIS
 
 Most upstream SDKs accept a `base_url` override:
 
@@ -69,7 +69,7 @@ client = anthropic.Anthropic(
 
 This works but loses access to the rich AEGIS features (capability tokens, intent declaration). Use Option B for those.
 
-### Option B — use the AEGIS SDK
+### Option B, use the AEGIS SDK
 
 ```python
 from aegis.sdk import AegisClient
@@ -112,15 +112,15 @@ If your app does retrieval (RAG, web fetch, email reading) it must communicate t
 - **OpenAI:** `role: "tool"` messages → L0
 - **Google:** `functionResponse` parts → L0
 
-If you stuff retrieved content into a `user` message, AEGIS will see it as L2 — and that's what the trust model is built to prevent. Use the right wire format.
+If you stuff retrieved content into a `user` message, AEGIS will see it as L2, and that's what the trust model is built to prevent. Use the right wire format.
 
 ## 5. Tune the policy
 
 ### Choose a mode
 
-- **`strict`** — production for high-stakes apps. Two WARNs block; any single BLOCK blocks.
-- **`balanced`** (default) — production for most apps. Single BLOCK blocks; WARNs pass with logging.
-- **`permissive`** — staging/development. Logs everything but blocks nothing. Useful for measuring false-positive rate before going live.
+- **`strict`**, production for high-stakes apps. Two WARNs block; any single BLOCK blocks.
+- **`balanced`** (default), production for most apps. Single BLOCK blocks; WARNs pass with logging.
+- **`permissive`**, staging/development. Logs everything but blocks nothing. Useful for measuring false-positive rate before going live.
 
 ### Tune the intent anchor threshold
 
@@ -141,7 +141,7 @@ Run the bench to validate: `aegis bench --mode balanced`.
 
 ```yaml
 capability:
-  default_ttl_seconds: 300   # 5 minutes — tighter than the 600s default
+  default_ttl_seconds: 300   # 5 minutes, tighter than the 600s default
   require_for_levels: [L2, L3]
   nonce_store:
     kind: memory   # or "redis" for multi-replica HA
@@ -200,11 +200,11 @@ endpoint = "https://splunk.internal:8088"
 
 ### Health and metrics
 
-- `GET /aegis/health` — liveness/readiness probe
-- `GET /aegis/version` — version
-- `GET /aegis/decisions?limit=50` — recent decisions
-- `GET /aegis/decisions/{request_id}` — one decision
-- `GET /metrics` — Prometheus exposition
+- `GET /aegis/health`, liveness/readiness probe
+- `GET /aegis/version`, version
+- `GET /aegis/decisions?limit=50`, recent decisions
+- `GET /aegis/decisions/{request_id}`, one decision
+- `GET /metrics`. Prometheus exposition
 
 ### Prometheus integration
 
@@ -256,7 +256,7 @@ Per the RFP performance budget:
 | Added p50 latency | <100 ms | <150 ms |
 | Added p99 latency | <250 ms | <400 ms |
 | Memory (proxy idle) | <300 MB | <500 MB |
-| Throughput (4 vCPU) | >100 req/s | — |
+| Throughput (4 vCPU) | >100 req/s |  |
 
 Embedding inference dominates. The default `hashing` embedder is essentially free. `sentence-transformers/all-MiniLM-L6-v2` adds ~5–15ms per embed on CPU; ~1–3ms on GPU. Budget two embeds per request (anchor at session start, drift per tool call).
 
