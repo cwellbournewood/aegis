@@ -1,0 +1,39 @@
+{"ts":1777621679.6691904,"level":"warn","msg":"canary leak detected in MCP tool response, replacing with error","src":"aegis-mcp-wrap","hits":1,"first_location":"mcp:tool_result.content[0].text"}
+============================================================
+AEGIS MCP wrapper end-to-end canary demonstration
+============================================================
+
+Per-session canary token: AEGIS-CANARY-2296-5963-CC7D
+
+Simulated MCP tool/call response (with canary leak):
+{
+  "jsonrpc": "2.0",
+  "id": 42,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Sure, here is the data: AEGIS-CANARY-2296-5963-CC7D"
+      }
+    ]
+  }
+}
+
+>>> wrapper inspects this message >>>
+
+What the agent actually receives:
+{
+  "jsonrpc": "2.0",
+  "id": 42,
+  "error": {
+    "code": -32000,
+    "message": "AEGIS: tool response blocked due to canary leak (suspected injection upstream)",
+    "data": {
+      "aegis": {
+        "decision": "BLOCK",
+        "reason": "canary leak in tool response",
+        "hits": 1
+      }
+    }
+  }
+}

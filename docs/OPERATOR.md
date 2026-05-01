@@ -45,7 +45,7 @@ helm install aegis ./deploy/helm/aegis \
 ### Bare metal
 
 ```bash
-pip install aegis-guard
+pip install git+https://github.com/cwellbournewood/aegis@main
 export AEGIS_MASTER_KEY="$(openssl rand -hex 32)"
 export AEGIS_POLICY_PATH=/etc/aegis/policy.yaml
 aegis up --port 8080 --workers 4
@@ -160,7 +160,7 @@ capability:
 Install the Redis extra:
 
 ```bash
-pip install 'aegis-guard[redis]'
+pip install 'aegis-guard[redis] @ git+https://github.com/cwellbournewood/aegis@main'
 ```
 
 ## 6. Observe

@@ -45,6 +45,7 @@ coverage.xml
 # IDE
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 *~

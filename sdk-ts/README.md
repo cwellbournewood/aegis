@@ -4,8 +4,12 @@ TypeScript client for the [AEGIS](https://github.com/cwellbournewood/aegis) prom
 
 ## Install
 
+Not yet published to npm. Build from source:
+
 ```bash
-npm install @aegis/guard
+git clone https://github.com/cwellbournewood/aegis
+cd aegis/sdk-ts && npm install && npm run build
+# then either npm link, or pack and install the resulting tarball
 ```
 
 ## Usage

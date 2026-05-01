@@ -6,6 +6,10 @@ A personal project exploring what happens when you treat prompt injection as a s
 
 > Pre-1.0. APIs and policy schema may change before 1.0. See [WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md) for whether it's a fit for what you're doing.
 
+![AEGIS dashboard](docs/images/dashboard.png)
+
+The operator dashboard at `/aegis/dashboard`: live decision stream, per-layer ALLOW/BLOCK votes, block-rate sparkline, and the full vote breakdown for any selected request.
+
 ## Why this exists
 
 LLMs ingest a single token stream. The boundary between system instructions, user input, retrieved documents, and tool output is a convention enforced by the application layer, not by the model. Defenses based on filtering natural language can be bypassed by sufficiently creative natural language.
@@ -41,7 +45,7 @@ Either point your existing OpenAI, Anthropic, or Google client at the AEGIS prox
 ```bash
 docker run -d --name aegis -p 8080:8080 \
   -e AEGIS_MASTER_KEY="$(openssl rand -hex 32)" \
-  ghcr.io/cwellbournewood/aegis:0.9.0
+  ghcr.io/cwellbournewood/aegis:main
 ```
 
 ```python
@@ -78,8 +82,10 @@ Full deployment cases in [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
 ## Install
 
+Not yet on PyPI / npm. Install directly from this repo:
+
 ```bash
-pip install aegis-guard
+pip install git+https://github.com/cwellbournewood/aegis@main
 aegis genkey > .aegis-master-key
 export AEGIS_MASTER_KEY="$(cat .aegis-master-key)"
 aegis up --port 8080
@@ -88,13 +94,15 @@ aegis up --port 8080
 For higher-quality drift detection:
 
 ```bash
-pip install 'aegis-guard[embed]'
+pip install 'aegis-guard[embed] @ git+https://github.com/cwellbournewood/aegis@main'
 ```
 
-TypeScript SDK:
+TypeScript SDK (build from source):
 
 ```bash
-npm install @aegis/guard
+git clone https://github.com/cwellbournewood/aegis
+cd aegis/sdk-ts && npm install && npm run build
+# then: npm link, or pack and install the resulting tarball
 ```
 
 ## CLI
@@ -170,6 +178,22 @@ Open-weights, Ollama, and vLLM are not yet supported.
 
 Numbers from `aegis bench-perf` on a Windows local box. CI-asserted regression tests run on every commit at 3x slack.
 
+## Adversarial benchmark
+
+`aegis bench --mode balanced` against the bundled adversarial corpus:
+
+```
+| category    | attempts | blocked | warned | allowed | block rate |
+|-------------+----------+---------+--------+---------+------------|
+| direct      |        4 |       4 |      0 |       0 |     100.0% |
+| indirect    |        8 |       7 |      0 |       1 |      87.5% |
+| memory      |        3 |       3 |      0 |       0 |     100.0% |
+| multi-agent |        2 |       2 |      0 |       0 |     100.0% |
+| benign      |        4 |       0 |      0 |       4 |       0.0% |
+```
+
+The single allowed indirect case is an explicit test that the policy correctly leaves an L2-origin tool call alone when capability and intent both line up. Benign corpus has zero false positives at `balanced`. Full output and a strict-mode run live in [docs/proof/](docs/proof/).
+
 ## Streaming
 
 ```
@@ -215,7 +239,7 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for the full threat model and d
 - [Architecture](docs/ARCHITECTURE.md): the decision pipeline
 - [Threat model](docs/THREAT_MODEL.md): what AEGIS defends against
 - [Operator guide](docs/OPERATOR.md): deployment, tuning, observability
-- [Contributing](docs/CONTRIBUTING.md): code style, evaluation criteria
+- [Contributing](CONTRIBUTING.md): code style, evaluation criteria
 - [Roadmap](ROADMAP.md): work toward 1.0
 
 ## License

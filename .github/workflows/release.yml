@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker:
+    name: Build and publish Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/${OWNER_LOWER}/aegis"
+          TAGS="${IMAGE}:sha-${GITHUB_SHA::7}"
+
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            TAGS="${TAGS},${IMAGE}:${VERSION},${IMAGE}:latest"
+          elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+            TAGS="${TAGS},${IMAGE}:main"
+          fi
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "Will tag: ${TAGS}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Smoke-test the published image
+        if: startsWith(github.ref, 'refs/tags/v') == false
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/${OWNER_LOWER}/aegis:sha-${GITHUB_SHA::7}"
+
+          docker run -d --name aegis-smoke -p 18080:8080 \
+            -e AEGIS_MASTER_KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff \
+            -e AEGIS_DRY_RUN=1 \
+            "${IMAGE}"
+          for i in {1..30}; do
+            if curl --fail --silent http://localhost:18080/aegis/health; then
+              echo
+              echo "smoke test passed"
+              docker logs aegis-smoke
+              docker rm -f aegis-smoke
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "smoke test FAILED — health check never returned 200"
+          docker logs aegis-smoke
+          docker rm -f aegis-smoke
+          exit 1
+
+  github-release:
+    name: Create GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: docker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          # Extract the section under "## [VERSION]" until the next "## [" line.
+          awk -v ver="${VERSION}" '
+            $0 ~ "^## \\[" ver "\\]" {found=1; next}
+            found && /^## \[/ {exit}
+            found {print}
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "Release ${VERSION}." > release-notes.md
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: AEGIS v${{ steps.changelog.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(steps.changelog.outputs.version, '-') || startsWith(steps.changelog.outputs.version, '0.') }}

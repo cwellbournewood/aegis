@@ -4,7 +4,7 @@ AEGIS exposes five distinct interface surfaces. Each is tuned for a different au
 
 | Surface | Audience | What it looks like |
 |---|---|---|
-| End user | Humans interacting with the agent | Invisible; agent recovers gracefully on block |
+| End user | Humans interacting with the agent | Structured `aegis_denied` block returned to the agent; user sees whatever the agent does with it |
 | Developer SDK | Application authors | Typed `AegisDecision` objects with `suggested_fix` |
 | CLI | Operators | Verb-oriented (`aegis logs show <id>`) |
 | Dashboard | Solo devs / small teams | Single-page HTML at `/aegis/dashboard` |
@@ -14,9 +14,11 @@ AEGIS exposes five distinct interface surfaces. Each is tuned for a different au
 
 ## End user
 
-Tool-call blocks return HTTP 200 with the `tool_use` block rewritten to a structured "denied" message the agent can recover from. End users see the agent's natural-language recovery, for example:
+Tool-call blocks return HTTP 200 with the `tool_use` block rewritten to a structured `aegis_denied` message and an accompanying `text` block summarizing the reason. The agent loop sees a normal-shaped response and decides what to do, retry, surface the denial, or stop. With a well-behaved agent, end users see something like:
 
 > *"I noticed an instruction in that email asking me to set up forwarding. That looked unusual, so I didn't act on it. Here's the summary you asked for."*
+
+The recovery quality is a property of the agent, not AEGIS. AEGIS guarantees that the side-effecting call never reaches the upstream provider; turning that into a graceful UX is on the application.
 
 Hard blocks (canary leaks, broken envelopes) return HTTP 451 with a brief non-technical reason, no layer names, scores, or token IDs.
 

@@ -27,6 +27,7 @@ import contextlib
 import json
 import os
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -86,9 +87,18 @@ class MCPWrapper:
             _emit_log("error", "no MCP command specified")
             sys.exit(2)
 
+        cmd = list(self.config.cmd)
+        # On Windows, subprocess.Popen needs the full path including .cmd/.bat
+        # for shell-script wrappers like `npx`, `npm`, `yarn`. shutil.which
+        # resolves that for us; on Linux/macOS this is a no-op when the bin
+        # is already on PATH.
+        resolved = shutil.which(cmd[0])
+        if resolved is not None:
+            cmd[0] = resolved
+
         try:
             self._proc = subprocess.Popen(
-                self.config.cmd,
+                cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=sys.stderr,

