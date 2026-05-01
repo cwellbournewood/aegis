@@ -2,9 +2,18 @@
 
 Format adapted from [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning per [SemVer](https://semver.org/).
 
+Stability commitments per surface live in [docs/STABILITY.md](docs/STABILITY.md).
+
 ## [0.9.0], pre-1.0 development
 
-Working toward a stable 1.0 release. Treat as beta. APIs and policy schema may change before 1.0.
+Working toward a stable 1.0 release. Treat as beta. The surfaces listed under "Frozen at 0.9" in [docs/STABILITY.md](docs/STABILITY.md) will not break before 1.0; everything under "Likely to move" can.
+
+### Supply chain
+
+- Multi-arch (amd64 + arm64) image published to `ghcr.io/cwellbournewood/aegis:0.9.0` and `:latest`.
+- Cosign keyless signature via Sigstore Fulcio (`cosign verify ...`).
+- SLSA v1 build-provenance attestation against the image (`gh attestation verify`).
+- SPDX SBOMs for source tree and image, attached to the GitHub Release and as cosign SBOM attestations.
 
 ### Five composed defense layers
 

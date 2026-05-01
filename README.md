@@ -4,7 +4,7 @@
 
 A personal project exploring what happens when you treat prompt injection as a structural problem instead of a content-classification one. Apache-2.0.
 
-> Pre-1.0. APIs and policy schema may change before 1.0. See [WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md) for whether it's a fit for what you're doing.
+> Pre-1.0. The HTTP, decision-log, hash-chain, and CLI surfaces are frozen at 0.9. The policy YAML schema and SDK shapes can still move; details and verification commands in [docs/STABILITY.md](docs/STABILITY.md). See [WHO_SHOULD_USE.md](docs/WHO_SHOULD_USE.md) for whether it's a fit for what you're doing.
 
 ![AEGIS dashboard](docs/images/dashboard.png)
 
@@ -230,10 +230,28 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for the full threat model and d
 - Not a substitute for least-privilege tool design; it complements it.
 - Not zero false-negative. The goal is to raise attacker cost dramatically while keeping false positives manageable.
 
+## Supply-chain verification
+
+Each tagged release ships a multi-arch image, a cosign keyless signature, a SLSA build-provenance attestation, and an SPDX SBOM.
+
+```bash
+# Verify the image was built by this repo's release workflow.
+cosign verify ghcr.io/cwellbournewood/aegis:0.9.0 \
+  --certificate-identity-regexp='https://github.com/cwellbournewood/aegis/.+' \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+
+# Verify SLSA provenance.
+gh attestation verify --owner cwellbournewood \
+  oci://ghcr.io/cwellbournewood/aegis:0.9.0
+```
+
+SBOMs (SPDX) are attached to each GitHub Release and as cosign SBOM attestations on the image.
+
 ## Documentation
 
 - [Quickstart](docs/QUICKSTART.md): three deployment cases with copy-paste code
 - [Who should use it](docs/WHO_SHOULD_USE.md): fit check
+- [Stability](docs/STABILITY.md): which surfaces are frozen at 0.9 and which can still move
 - [Mental model](docs/MENTAL_MODEL.md): each layer explained
 - [Interfaces](docs/INTERFACES.md): end user, SDK, CLI, dashboard, audit log
 - [Architecture](docs/ARCHITECTURE.md): the decision pipeline
