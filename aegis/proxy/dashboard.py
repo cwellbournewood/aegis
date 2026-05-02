@@ -1,0 +1,896 @@
+"""TRON-styled operator dashboard, served from `/aegis/dashboard`.
+
+Single-page HTML. Polls `/aegis/decisions` and `/aegis/health` for live data.
+The visual reference lives at `design/dashboard.html` in the repo.
+
+Web fonts (Orbitron + JetBrains Mono) load from Google Fonts; if your
+environment blocks them, the layout falls back to system monospace.
+"""
+# ruff: noqa: RUF001  (the multiplication-sign glyph in the rendered HTML is intentional)
+
+from __future__ import annotations
+
+DASHBOARD_HTML = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AEGIS // GRID CONTROL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000308;
+    --grid-line: rgba(0, 217, 255, 0.06);
+    --grid-line-major: rgba(0, 217, 255, 0.10);
+    --cyan: #00d9ff;
+    --cyan-bright: #5ef3ff;
+    --cyan-dim: #2a7a8e;
+    --cyan-glow: rgba(0, 217, 255, 0.55);
+    --orange: #ff7a1a;
+    --orange-bright: #ffb054;
+    --orange-glow: rgba(255, 122, 26, 0.6);
+    --warn: #ffd84d;
+    --warn-glow: rgba(255, 216, 77, 0.5);
+    --green: #4dff9f;
+    --green-glow: rgba(77, 255, 159, 0.5);
+    --text: #d4f1f9;
+    --text-dim: #6a98a8;
+    --text-faint: #3d5e6b;
+    --panel-border: rgba(0, 217, 255, 0.25);
+    --panel-bg: rgba(0, 12, 20, 0.6);
+    --font-display: 'Orbitron', sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(var(--grid-line-major) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line-major) 1px, transparent 1px);
+    background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.5) 100%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .scan-line {
+    position: fixed; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyan-glow), transparent);
+    z-index: 100;
+    pointer-events: none;
+    animation: scan 8s linear infinite;
+    opacity: 0.6;
+  }
+  @keyframes scan { 0% { top: -2px; } 100% { top: 100vh; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scan-line { display: none; }
+    .status-dot, .live-dot { animation: none !important; }
+  }
+
+  .app {
+    position: relative; z-index: 2;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 56px 1fr 32px;
+  }
+
+  .header {
+    border-bottom: 1px solid var(--panel-border);
+    background: linear-gradient(180deg, rgba(0, 217, 255, 0.04), transparent);
+    display: flex; align-items: center;
+    padding: 0 24px; gap: 32px;
+    position: relative;
+  }
+  .header::after {
+    content: '';
+    position: absolute; bottom: -1px; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    opacity: 0.3;
+  }
+
+  .logo {
+    font-family: var(--font-display);
+    font-weight: 900; font-size: 18px;
+    letter-spacing: 0.25em;
+    color: var(--cyan-bright);
+    text-shadow: 0 0 12px var(--cyan-glow), 0 0 24px var(--cyan-glow);
+  }
+  .logo-sub {
+    font-family: var(--font-display);
+    font-weight: 400; font-size: 11px;
+    letter-spacing: 0.4em;
+    color: var(--cyan-dim);
+    margin-left: 8px;
+  }
+
+  .header-stat {
+    display: flex; flex-direction: column;
+    gap: 2px; font-size: 10px; line-height: 1.2;
+  }
+  .header-stat-label {
+    color: var(--text-faint);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .header-stat-value {
+    color: var(--text);
+    font-weight: 500; font-size: 12px;
+  }
+
+  .status-pill {
+    margin-left: auto;
+    display: flex; align-items: center;
+    gap: 10px;
+    padding: 6px 14px;
+    border: 1px solid var(--green);
+    background: rgba(77, 255, 159, 0.08);
+    color: var(--green);
+    font-family: var(--font-display);
+    font-size: 11px; font-weight: 500;
+    letter-spacing: 0.25em;
+    text-shadow: 0 0 8px var(--green-glow);
+  }
+  .status-pill.threat {
+    border-color: var(--orange);
+    background: rgba(255, 122, 26, 0.08);
+    color: var(--orange);
+    text-shadow: 0 0 8px var(--orange-glow);
+  }
+  .status-pill.threat .status-dot {
+    background: var(--orange);
+    box-shadow: 0 0 8px var(--orange), 0 0 16px var(--orange-glow);
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green), 0 0 16px var(--green-glow);
+    animation: pulse 2s ease-in-out infinite;
+    border-radius: 50%;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .grid-main {
+    display: grid;
+    grid-template-columns: 280px 1fr 380px;
+    gap: 1px;
+    background: var(--panel-border);
+    overflow: hidden;
+  }
+
+  .panel {
+    background: var(--panel-bg);
+    backdrop-filter: blur(2px);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex; align-items: center;
+    justify-content: space-between;
+    background: rgba(0, 217, 255, 0.03);
+  }
+  .panel-title {
+    font-family: var(--font-display);
+    font-weight: 500; font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--cyan);
+    text-shadow: 0 0 6px var(--cyan-glow);
+  }
+  .panel-corner {
+    color: var(--cyan-dim);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+  }
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+  }
+  .panel-body::-webkit-scrollbar { width: 6px; }
+  .panel-body::-webkit-scrollbar-track { background: transparent; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--cyan-dim); }
+
+  .corner-bracket {
+    position: absolute;
+    width: 12px; height: 12px;
+    border: 1px solid var(--cyan);
+    opacity: 0.6;
+  }
+  .cb-tl { top: 4px; left: 4px; border-right: none; border-bottom: none; }
+  .cb-tr { top: 4px; right: 4px; border-left: none; border-bottom: none; }
+  .cb-bl { bottom: 4px; left: 4px; border-right: none; border-top: none; }
+  .cb-br { bottom: 4px; right: 4px; border-left: none; border-top: none; }
+
+  .layer {
+    display: flex; align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--panel-border);
+  }
+  .layer:last-of-type { border-bottom: none; }
+  .layer-dot {
+    width: 10px; height: 10px;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green), 0 0 12px var(--green-glow);
+    flex-shrink: 0;
+  }
+  .layer-name {
+    flex: 1;
+    font-family: var(--font-display);
+    font-size: 11px; letter-spacing: 0.2em;
+    color: var(--text);
+  }
+  .layer-stat {
+    color: var(--text-dim);
+    font-size: 10px; letter-spacing: 0.1em;
+  }
+
+  .stat-block {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--panel-border);
+  }
+  .stat-label {
+    font-family: var(--font-display);
+    font-size: 10px; letter-spacing: 0.3em;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .stat-value {
+    font-family: var(--font-display);
+    font-weight: 700; font-size: 32px;
+    color: var(--cyan-bright);
+    text-shadow: 0 0 10px var(--cyan-glow);
+    letter-spacing: 0.05em;
+    line-height: 1;
+  }
+  .stat-unit {
+    color: var(--text-dim);
+    font-size: 11px; letter-spacing: 0.2em;
+    margin-top: 4px;
+    display: flex; justify-content: space-between;
+  }
+  .sparkline { width: 100%; height: 48px; margin-top: 10px; }
+
+  .stream-row {
+    display: grid;
+    grid-template-columns: 88px 70px 110px 1fr 80px;
+    gap: 12px;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(0, 217, 255, 0.08);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+    align-items: center;
+  }
+  .stream-row:hover { background: rgba(0, 217, 255, 0.05); }
+  .stream-row.selected {
+    background: rgba(0, 217, 255, 0.10);
+    border-left: 2px solid var(--cyan);
+    padding-left: 10px;
+  }
+  .stream-row.block {
+    border-left: 2px solid var(--orange);
+    padding-left: 10px;
+    background: rgba(255, 122, 26, 0.04);
+  }
+  .stream-row.warn {
+    border-left: 2px solid var(--warn);
+    padding-left: 10px;
+  }
+  .stream-time { color: var(--text-dim); font-size: 11px; }
+  .stream-decision {
+    font-family: var(--font-display);
+    font-weight: 500; font-size: 10px;
+    letter-spacing: 0.2em;
+    text-align: center;
+    padding: 3px 6px;
+    border: 1px solid;
+  }
+  .d-allow {
+    color: var(--green);
+    border-color: var(--green);
+    text-shadow: 0 0 4px var(--green-glow);
+  }
+  .d-block {
+    color: var(--orange);
+    border-color: var(--orange);
+    text-shadow: 0 0 6px var(--orange-glow);
+    background: rgba(255, 122, 26, 0.08);
+  }
+  .d-warn {
+    color: var(--warn);
+    border-color: var(--warn);
+    text-shadow: 0 0 4px var(--warn-glow);
+  }
+  .stream-id { color: var(--cyan-dim); font-size: 11px; }
+  .stream-action {
+    color: var(--text);
+    font-size: 12px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .stream-latency {
+    color: var(--text-dim);
+    font-size: 11px;
+    text-align: right;
+  }
+
+  .detail-empty {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%;
+    color: var(--text-faint);
+    text-align: center;
+    padding: 32px;
+    font-family: var(--font-display);
+    font-size: 11px; letter-spacing: 0.3em;
+    line-height: 2;
+  }
+  .detail-section { margin-bottom: 18px; }
+  .detail-label {
+    font-family: var(--font-display);
+    font-size: 10px; letter-spacing: 0.3em;
+    color: var(--cyan);
+    margin-bottom: 8px;
+    text-shadow: 0 0 4px var(--cyan-glow);
+  }
+  .detail-meta {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 4px 12px;
+    font-size: 11px;
+  }
+  .detail-meta-key {
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+  }
+  .detail-meta-val {
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  .vote {
+    display: grid;
+    grid-template-columns: 16px 110px 1fr;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px dashed rgba(0, 217, 255, 0.12);
+    font-size: 11px;
+    align-items: start;
+  }
+  .vote-icon {
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-align: center;
+  }
+  .vote-icon.ok   { color: var(--green);  text-shadow: 0 0 4px var(--green-glow); }
+  .vote-icon.bad  { color: var(--orange); text-shadow: 0 0 4px var(--orange-glow); }
+  .vote-icon.warn { color: var(--warn);   text-shadow: 0 0 4px var(--warn-glow); }
+  .vote-name {
+    font-family: var(--font-display);
+    font-size: 10px; letter-spacing: 0.15em;
+    color: var(--text);
+  }
+  .vote-reason {
+    color: var(--text-dim);
+    font-size: 11px; line-height: 1.5;
+  }
+
+  .footer {
+    border-top: 1px solid var(--panel-border);
+    padding: 0 24px;
+    display: flex; align-items: center;
+    gap: 24px;
+    background: linear-gradient(0deg, rgba(0, 217, 255, 0.04), transparent);
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .footer-key {
+    color: var(--cyan);
+    margin-right: 6px;
+  }
+
+  .live-dot {
+    width: 6px; height: 6px;
+    background: var(--cyan);
+    border-radius: 50%;
+    box-shadow: 0 0 6px var(--cyan);
+    animation: pulse 1.5s ease-in-out infinite;
+    display: inline-block;
+    margin-right: 6px;
+  }
+
+  .empty-stream {
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--text-faint);
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    line-height: 2;
+  }
+</style>
+</head>
+<body>
+
+<div class="scan-line"></div>
+
+<div class="app">
+  <header class="header">
+    <div>
+      <span class="logo">AEGIS</span>
+      <span class="logo-sub">/ / GRID CONTROL</span>
+    </div>
+    <div class="header-stat">
+      <div class="header-stat-label">Version</div>
+      <div class="header-stat-value" id="hdr-version"> </div>
+    </div>
+    <div class="header-stat">
+      <div class="header-stat-label">Policy</div>
+      <div class="header-stat-value" id="hdr-policy"> </div>
+    </div>
+    <div class="header-stat">
+      <div class="header-stat-label">Uptime</div>
+      <div class="header-stat-value" id="hdr-uptime"> </div>
+    </div>
+    <div class="header-stat">
+      <div class="header-stat-label">Sessions</div>
+      <div class="header-stat-value" id="hdr-sessions"> </div>
+    </div>
+    <div class="status-pill" id="status-pill" aria-label="system status: armed">
+      <span class="status-dot"></span>
+      <span id="status-text">ARMED</span>
+    </div>
+  </header>
+
+  <div class="grid-main">
+
+    <aside class="panel">
+      <div class="corner-bracket cb-tl"></div>
+      <div class="corner-bracket cb-tr"></div>
+      <div class="corner-bracket cb-bl"></div>
+      <div class="corner-bracket cb-br"></div>
+      <div class="panel-header">
+        <span class="panel-title">Layer Status</span>
+        <span class="panel-corner">5/5</span>
+      </div>
+      <div class="panel-body">
+        <div class="layer"><span class="layer-dot"></span><span class="layer-name">CCPT</span><span class="layer-stat" id="layer-ccpt"> </span></div>
+        <div class="layer"><span class="layer-dot"></span><span class="layer-name">Lattice</span><span class="layer-stat" id="layer-lattice"> </span></div>
+        <div class="layer"><span class="layer-dot"></span><span class="layer-name">Intent</span><span class="layer-stat" id="layer-intent"> </span></div>
+        <div class="layer"><span class="layer-dot"></span><span class="layer-name">Canary</span><span class="layer-stat" id="layer-canary"> </span></div>
+        <div class="layer"><span class="layer-dot"></span><span class="layer-name">Capability</span><span class="layer-stat" id="layer-capability"> </span></div>
+
+        <div class="stat-block">
+          <div class="stat-label">Active Sessions</div>
+          <div class="stat-value" id="active-sessions"> </div>
+          <div class="stat-unit"><span>in flight</span></div>
+        </div>
+
+        <div class="stat-block">
+          <div class="stat-label">Block Rate · Window</div>
+          <svg class="sparkline" viewBox="0 0 240 48" preserveAspectRatio="none" id="sparkline" aria-label="block rate sparkline">
+            <polyline id="spark-line" fill="none" stroke="#00d9ff" stroke-width="1.5" style="filter: drop-shadow(0 0 3px #00d9ff);" />
+            <polyline id="spark-fill" fill="rgba(0, 217, 255, 0.1)" stroke="none" />
+          </svg>
+          <div class="stat-unit">
+            <span id="spark-now"> </span>
+            <span style="color: var(--orange);" id="spark-peak">peak  </span>
+          </div>
+        </div>
+
+        <div class="stat-block">
+          <div class="stat-label">Decisions · Window</div>
+          <div class="stat-value" style="font-size: 24px;" id="decisions-total"> </div>
+          <div class="stat-unit">
+            <span style="color: var(--green);"><span id="decisions-allow"> </span> allow</span>
+            <span style="color: var(--orange);"><span id="decisions-block"> </span> block</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="panel">
+      <div class="corner-bracket cb-tl"></div>
+      <div class="corner-bracket cb-tr"></div>
+      <div class="corner-bracket cb-bl"></div>
+      <div class="corner-bracket cb-br"></div>
+      <div class="panel-header">
+        <span class="panel-title">
+          <span class="live-dot"></span>Decision Stream
+        </span>
+        <span class="panel-corner">LIVE · TAIL -F</span>
+      </div>
+      <div class="panel-body" id="stream" style="padding: 0;">
+        <div class="empty-stream" id="stream-empty">
+          <div>AWAITING DECISIONS</div>
+          <div style="opacity: 0.5;">RUN A REQUEST AGAINST</div>
+          <div style="opacity: 0.5;">/v1/anthropic/messages</div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="panel">
+      <div class="corner-bracket cb-tl"></div>
+      <div class="corner-bracket cb-tr"></div>
+      <div class="corner-bracket cb-bl"></div>
+      <div class="corner-bracket cb-br"></div>
+      <div class="panel-header">
+        <span class="panel-title">Event Detail</span>
+        <span class="panel-corner" id="detail-id"> </span>
+      </div>
+      <div class="panel-body" id="detail">
+        <div class="detail-empty">
+          <div>SELECT A DECISION</div>
+          <div style="opacity: 0.4;">FROM THE STREAM</div>
+          <div style="margin-top: 24px; font-size: 9px; opacity: 0.4;">▼</div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <footer class="footer">
+    <div><span class="footer-key">M</span>METRICS</div>
+    <div><span class="footer-key">P</span>POLICY</div>
+    <div><span class="footer-key">R</span>REFRESH</div>
+    <div style="margin-left: auto;">
+      <span class="footer-key">●</span>HASH-CHAIN INTACT · <span id="footer-entries"> </span> ENTRIES
+    </div>
+  </footer>
+
+</div>
+
+<script>
+const els = {
+  streamEl: document.getElementById('stream'),
+  streamEmpty: document.getElementById('stream-empty'),
+  detail: document.getElementById('detail'),
+  detailId: document.getElementById('detail-id'),
+  hdrVersion: document.getElementById('hdr-version'),
+  hdrPolicy: document.getElementById('hdr-policy'),
+  hdrUptime: document.getElementById('hdr-uptime'),
+  hdrSessions: document.getElementById('hdr-sessions'),
+  activeSessions: document.getElementById('active-sessions'),
+  decisionsTotal: document.getElementById('decisions-total'),
+  decisionsAllow: document.getElementById('decisions-allow'),
+  decisionsBlock: document.getElementById('decisions-block'),
+  sparkLine: document.getElementById('spark-line'),
+  sparkFill: document.getElementById('spark-fill'),
+  sparkNow: document.getElementById('spark-now'),
+  sparkPeak: document.getElementById('spark-peak'),
+  footerEntries: document.getElementById('footer-entries'),
+  statusPill: document.getElementById('status-pill'),
+  statusText: document.getElementById('status-text'),
+  layerStats: {
+    CCPT: document.getElementById('layer-ccpt'),
+    LATTICE: document.getElementById('layer-lattice'),
+    INTENT: document.getElementById('layer-intent'),
+    CANARY: document.getElementById('layer-canary'),
+    CAPABILITY: document.getElementById('layer-capability'),
+  },
+};
+
+let entries = [];
+let selectedReqId = null;
+let lastSeq = 0;
+
+const LAYER_DISPLAY = {
+  ccpt_verify: 'CCPT',
+  lattice: 'LATTICE',
+  intent_drift: 'INTENT',
+  intent_drift_text: 'INTENT',
+  canary: 'CANARY',
+  capability: 'CAPABILITY',
+};
+
+function pickAction(p) {
+  const tcs = p.tool_calls || [];
+  if (tcs.length > 0) return 'tool:' + tcs[0].tool;
+  return 'msg.create';
+}
+
+function fmtTs(ts) {
+  const d = new Date(ts * 1000);
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const s = String(d.getSeconds()).padStart(2, '0');
+  return h + ':' + m + ':' + s;
+}
+
+function fmtUptime(seconds) {
+  const total = Math.floor(seconds);
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  if (d > 0) return d + 'd ' + String(h).padStart(2,'0') + 'h ' + String(m).padStart(2,'0') + 'm';
+  return String(h).padStart(2,'0') + 'h ' + String(m).padStart(2,'0') + 'm';
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+async function fetchHealth() {
+  try {
+    const r = await fetch('/aegis/health');
+    if (!r.ok) return;
+    const h = await r.json();
+    els.hdrVersion.textContent = 'v' + h.version;
+    els.hdrPolicy.textContent = h.policy_mode;
+    els.hdrUptime.textContent = fmtUptime(h.uptime_seconds || 0);
+    els.hdrSessions.textContent = h.active_sessions;
+    els.activeSessions.textContent = h.active_sessions;
+    els.footerEntries.textContent = (h.log_entries || 0).toLocaleString();
+  } catch (e) { /* offline */ }
+}
+
+async function fetchDecisions() {
+  try {
+    const r = await fetch('/aegis/decisions?limit=200');
+    if (!r.ok) return;
+    const data = await r.json();
+    const newEntries = (data.entries || []).map(e => e.payload).filter(Boolean);
+    if (!newEntries.length) {
+      renderStats([]);
+      return;
+    }
+    const previousLastSeq = lastSeq;
+    const latestSeq = data.entries[data.entries.length - 1].seq;
+    entries = newEntries;
+    renderStream();
+    renderStats(entries);
+
+    if (latestSeq !== lastSeq) {
+      const sinceLast = data.entries.filter(e => e.seq > previousLastSeq);
+      if (previousLastSeq > 0 && sinceLast.some(e => (e.payload || {}).decision === 'BLOCK')) {
+        flashThreat();
+      }
+      lastSeq = latestSeq;
+      if (!selectedReqId && entries.length > 0) {
+        selectedReqId = entries[entries.length - 1].request_id;
+        renderDetail(entries[entries.length - 1]);
+      }
+    }
+  } catch (e) { /* offline */ }
+}
+
+function flashThreat() {
+  els.statusPill.classList.add('threat');
+  els.statusText.textContent = 'BLOCK';
+  setTimeout(() => {
+    els.statusPill.classList.remove('threat');
+    els.statusText.textContent = 'ARMED';
+  }, 4000);
+}
+
+function renderStream() {
+  if (!entries.length) {
+    if (els.streamEmpty) els.streamEmpty.style.display = '';
+    return;
+  }
+  if (els.streamEmpty) els.streamEmpty.style.display = 'none';
+
+  const reversed = [...entries].reverse();
+  els.streamEl.innerHTML = '';
+  reversed.forEach(p => {
+    const action = pickAction(p);
+    const id = (p.request_id || '').slice(0, 12);
+    const ts = fmtTs(p.timestamp || (Date.now() / 1000));
+    const dec = (p.decision || 'ALLOW');
+    const rowClass = dec === 'BLOCK' ? ' block' : (dec === 'WARN' ? ' warn' : '');
+    const sel = (p.request_id === selectedReqId) ? ' selected' : '';
+    const latency = (p.latency_ms != null) ? Math.round(p.latency_ms) + 'ms' : ' ';
+    const row = document.createElement('div');
+    row.className = 'stream-row' + rowClass + sel;
+    row.innerHTML =
+      '<div class="stream-time">' + ts + '</div>' +
+      '<div class="stream-decision d-' + dec.toLowerCase() + '">' + dec + '</div>' +
+      '<div class="stream-id">' + escapeHtml(id) + '</div>' +
+      '<div class="stream-action">' + escapeHtml(action) + '</div>' +
+      '<div class="stream-latency">' + latency + '</div>';
+    row.addEventListener('click', () => {
+      selectedReqId = p.request_id;
+      renderStream();
+      renderDetail(p);
+    });
+    els.streamEl.appendChild(row);
+  });
+}
+
+function renderDetail(p) {
+  els.detailId.textContent = (p.request_id || '').slice(0, 14);
+  const dec = p.decision || 'ALLOW';
+  const decColor = dec === 'BLOCK' ? 'var(--orange-bright)' : (dec === 'WARN' ? 'var(--warn)' : 'var(--green)');
+
+  const blockedBy = p.blocked_by || [];
+  const blockedHtml = blockedBy.length > 0
+    ? '<div class="detail-section">' +
+        '<div class="detail-label">Blocked By</div>' +
+        '<div style="color: var(--orange-bright); letter-spacing: 0.15em; font-family: var(--font-display); font-size: 11px;">' +
+          blockedBy.map(b => escapeHtml(b.toUpperCase())).join(' · ') +
+        '</div>' +
+      '</div>'
+    : '';
+
+  const votesHtml = Object.entries(p.votes || {}).map(([layer, v]) => {
+    const verdict = v.verdict || 'ALLOW';
+    const cls = verdict === 'ALLOW' ? 'ok' : (verdict === 'BLOCK' ? 'bad' : 'warn');
+    const icon = verdict === 'ALLOW' ? '+' : (verdict === 'BLOCK' ? '×' : '!');
+    const display = LAYER_DISPLAY[layer] || layer.toUpperCase();
+    return '<div class="vote">' +
+      '<div class="vote-icon ' + cls + '">' + icon + '</div>' +
+      '<div class="vote-name">' + escapeHtml(display) + '</div>' +
+      '<div class="vote-reason">' + escapeHtml(v.reason || '') + '</div>' +
+    '</div>';
+  }).join('');
+
+  const tcs = p.tool_calls || [];
+  const toolsHtml = tcs.length
+    ? '<div class="detail-section">' +
+        '<div class="detail-label">Proposed Tool Calls</div>' +
+        tcs.map(t =>
+          '<div class="vote">' +
+            '<div class="vote-icon">▸</div>' +
+            '<div class="vote-name">' + escapeHtml(t.tool || '?') + '</div>' +
+            '<div class="vote-reason">' + escapeHtml(t.summary || '') +
+            '<br><span style="color: var(--text-faint);">params: ' +
+            ((t.params_redacted || []).map(escapeHtml).join(', ') || ' ') +
+            '</span></div>' +
+          '</div>'
+        ).join('') +
+      '</div>'
+    : '';
+
+  const chunks = p.input_chunks || [];
+  const chunksHtml = chunks.length
+    ? '<div class="detail-section">' +
+        '<div class="detail-label">Input Chunks</div>' +
+        '<div style="display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 11px;">' +
+          chunks.map(c => {
+            const lvlColor = c.level === 'L0' ? 'var(--orange)' :
+                             c.level === 'L1' ? 'var(--warn)' :
+                             c.level === 'L2' ? 'var(--cyan)' : 'var(--green)';
+            return '<span style="color: var(--text-dim);">' + escapeHtml(c.origin) + '</span>' +
+                   '<span style="color: ' + lvlColor + '; font-family: var(--font-display); letter-spacing: 0.15em;">' + escapeHtml(c.level) + '</span>';
+          }).join('') +
+        '</div>' +
+      '</div>'
+    : '';
+
+  els.detail.innerHTML =
+    '<div class="detail-section">' +
+      '<div class="detail-label">Metadata</div>' +
+      '<div class="detail-meta">' +
+        '<div class="detail-meta-key">request</div><div class="detail-meta-val">' + escapeHtml(p.request_id || '') + '</div>' +
+        '<div class="detail-meta-key">session</div><div class="detail-meta-val">' + escapeHtml(p.session_id || '') + '</div>' +
+        '<div class="detail-meta-key">upstream</div><div class="detail-meta-val">' + escapeHtml(p.upstream || '') + '</div>' +
+        '<div class="detail-meta-key">mode</div><div class="detail-meta-val">' + escapeHtml(p.mode || '') + '</div>' +
+        '<div class="detail-meta-key">latency</div><div class="detail-meta-val">' + (p.latency_ms != null ? Math.round(p.latency_ms) + 'ms' : ' ') + '</div>' +
+        '<div class="detail-meta-key">decision</div><div class="detail-meta-val" style="color: ' + decColor + '; font-family: var(--font-display); letter-spacing: 0.2em;">' + escapeHtml(dec) + '</div>' +
+      '</div>' +
+    '</div>' +
+    blockedHtml +
+    '<div class="detail-section">' +
+      '<div class="detail-label">Layer Votes</div>' +
+      (votesHtml || '<div class="detail-empty" style="height: auto; padding: 12px;">no votes recorded</div>') +
+    '</div>' +
+    toolsHtml +
+    chunksHtml +
+    (p.reason ?
+      '<div class="detail-section">' +
+        '<div class="detail-label">Reason</div>' +
+        '<div style="color: var(--text-dim); font-size: 11px; line-height: 1.6;">' + escapeHtml(p.reason) + '</div>' +
+      '</div>' : '');
+}
+
+function renderStats(entries) {
+  const counts = { ALLOW: 0, WARN: 0, BLOCK: 0 };
+  const layerCounts = { CCPT: 0, LATTICE: 0, INTENT: 0, CANARY: 0, CAPABILITY: 0 };
+  for (const p of entries) {
+    counts[p.decision || 'ALLOW'] = (counts[p.decision || 'ALLOW'] || 0) + 1;
+    for (const layer of Object.keys(p.votes || {})) {
+      const display = LAYER_DISPLAY[layer];
+      if (display) layerCounts[display] = (layerCounts[display] || 0) + 1;
+    }
+  }
+  els.decisionsTotal.textContent = entries.length.toLocaleString();
+  els.decisionsAllow.textContent = (counts.ALLOW || 0).toLocaleString();
+  els.decisionsBlock.textContent = (counts.BLOCK || 0).toLocaleString();
+  for (const [name, el] of Object.entries(els.layerStats)) {
+    el.textContent = layerCounts[name] ? layerCounts[name].toString() : ' ';
+  }
+  drawSparkline(entries);
+}
+
+function drawSparkline(entries) {
+  if (!entries.length) {
+    els.sparkLine.setAttribute('points', '');
+    els.sparkFill.setAttribute('points', '');
+    els.sparkNow.textContent = ' ';
+    els.sparkPeak.textContent = 'peak  ';
+    return;
+  }
+  const W = 240, H = 48;
+  const buckets = 30;
+  const startTs = entries[0].timestamp || (Date.now() / 1000);
+  const endTs = entries[entries.length - 1].timestamp || Date.now() / 1000;
+  const span = Math.max(1, endTs - startTs);
+  const interval = span / buckets;
+  const counts = new Array(buckets).fill(0).map(() => ({ b: 0, n: 0 }));
+  for (const p of entries) {
+    const ts = p.timestamp || endTs;
+    const idx = Math.min(buckets - 1, Math.max(0, Math.floor((ts - startTs) / interval)));
+    counts[idx].n++;
+    if ((p.decision || 'ALLOW') === 'BLOCK') counts[idx].b++;
+  }
+  const rates = counts.map(c => c.n ? c.b / c.n : 0);
+  const max = Math.max(0.01, ...rates);
+  const w = W / (buckets - 1);
+  let line = '';
+  for (let i = 0; i < buckets; i++) {
+    const x = i * w;
+    const y = H - (rates[i] / max) * (H - 4) - 2;
+    line += (i === 0 ? '' : ' ') + x.toFixed(1) + ',' + y.toFixed(1);
+  }
+  els.sparkLine.setAttribute('points', line);
+  els.sparkFill.setAttribute('points', line + ' ' + W + ',' + H + ' 0,' + H);
+  const overallRate = entries.filter(p => (p.decision || '') === 'BLOCK').length / entries.length;
+  els.sparkNow.textContent = (overallRate * 100).toFixed(1) + '%';
+  els.sparkPeak.textContent = 'peak ' + (max * 100).toFixed(1) + '%';
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  if (e.key === 'r' || e.key === 'R') { fetchHealth(); fetchDecisions(); }
+  if (e.key === 'm' || e.key === 'M') window.open('/metrics', '_blank');
+  if (e.key === 'p' || e.key === 'P') window.open('/aegis/health', '_blank');
+});
+
+fetchHealth();
+fetchDecisions();
+setInterval(fetchHealth, 5000);
+setInterval(fetchDecisions, 1500);
+</script>
+
+</body>
+</html>
+"""
+
+
+def render_dashboard() -> str:
+    return DASHBOARD_HTML

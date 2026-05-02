@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>AEGIS architecture diagram</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --obsidian:        #0B0B10;
+    --obsidian-2:      #14141B;
+    --bronze:          #B0875A;
+    --bronze-bright:   #D4A574;
+    --bronze-dim:      #6B5238;
+    --parchment:       #F0E5C8;
+    --parchment-dim:   #C9BFA4;
+    --parchment-mute:  #8C8472;
+    --cinnabar:        #C84B31;
+    --cinnabar-bright: #E76F4C;
+    --laurel:          #7A8C5C;
+    --laurel-bright:   #9DAA7B;
+    --rule:            rgba(176, 135, 90, 0.20);
+
+    --display:  'Cinzel', Georgia, serif;
+    --serif:    'Cormorant Garamond', Georgia, serif;
+    --mono:     'JetBrains Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--obsidian);
+    font-family: var(--mono);
+    padding: 56px;
+    min-height: 100vh;
+  }
+
+  .diagram-wrapper {
+    background: var(--obsidian-2);
+    border: 1px solid var(--rule);
+    padding: 32px;
+    max-width: 1480px;
+    margin: 0 auto;
+  }
+  .diagram-wrapper svg { width: 100%; height: auto; display: block; }
+
+  .diagram-legend {
+    display: flex;
+    gap: 36px;
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--rule);
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 15px;
+    color: var(--parchment-dim);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    line-height: 1.4;
+  }
+  .legend-item .swatch { width: 28px; height: 1.5px; display: inline-block; flex-shrink: 0; }
+  .legend-item.legit  .swatch { background: var(--bronze); }
+  .legend-item.threat .swatch {
+    background: linear-gradient(90deg, var(--cinnabar) 0 4px, transparent 4px 8px,
+                                       var(--cinnabar) 8px 12px, transparent 12px 16px,
+                                       var(--cinnabar) 16px 20px, transparent 20px 24px,
+                                       var(--cinnabar) 24px 28px);
+  }
+
+  .diag-node { fill: rgba(176, 135, 90, 0.04); stroke: var(--bronze); stroke-width: 1; }
+  .diag-node.threat-source { stroke: var(--cinnabar); fill: rgba(200, 75, 49, 0.06); }
+  .diag-node.outcome-block {
+    stroke: var(--cinnabar);
+    fill: rgba(200, 75, 49, 0.08);
+    stroke-width: 1.4;
+    filter: drop-shadow(0 0 6px rgba(231, 111, 76, 0.20));
+  }
+  .diag-node.outcome-allow {
+    stroke: var(--laurel);
+    fill: rgba(122, 140, 92, 0.08);
+    stroke-width: 1.4;
+    filter: drop-shadow(0 0 6px rgba(157, 170, 123, 0.16));
+  }
+  .diag-node.primary       { fill: rgba(176, 135, 90, 0.08); stroke-width: 1.2; }
+
+  .diag-edge { stroke: var(--bronze-dim); stroke-width: 1; fill: none; opacity: 0.7; }
+  .diag-edge.threat {
+    stroke: var(--cinnabar);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 4;
+    opacity: 0.85;
+  }
+  .threat-pulse {
+    fill: var(--cinnabar-bright);
+    filter: drop-shadow(0 0 5px rgba(231, 111, 76, 0.85))
+            drop-shadow(0 0 12px rgba(231, 111, 76, 0.35));
+  }
+
+  .diag-label { font-family: var(--display); font-weight: 600; fill: var(--parchment); font-size: 12px; letter-spacing: 0.16em; }
+  .diag-label.allow { fill: var(--laurel-bright); }
+  .diag-label.block { fill: var(--cinnabar-bright); }
+
+  .diag-sub { font-family: var(--serif); font-style: italic; fill: var(--parchment-mute); font-size: 12px; }
+  .diag-sub.tight { font-size: 11px; }
+
+  .diag-roman { font-family: var(--display); font-weight: 700; fill: var(--bronze); font-size: 14px; letter-spacing: 0.04em; }
+  .diag-rule { stroke: var(--rule); stroke-width: 1; opacity: 0.7; }
+
+  .diag-stage { font-family: var(--mono); font-weight: 500; fill: var(--bronze); font-size: 9px; letter-spacing: 0.32em; text-transform: uppercase; }
+  .diag-stage-num { font-family: var(--display); font-weight: 700; fill: var(--bronze-dim); font-size: 11px; }
+  .diag-edge-label { font-family: var(--mono); fill: var(--parchment-mute); font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; }
+  .diag-cap { font-family: var(--serif); font-style: italic; fill: var(--parchment-mute); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="diagram-wrapper">
+  <svg viewBox="0 0 960 420" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <marker id="ar-bronze"   viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M 0 0 L 8 4 L 0 8 z" fill="#B0875A" />
+      </marker>
+      <marker id="ar-cinnabar" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M 0 0 L 8 4 L 0 8 z" fill="#C84B31" />
+      </marker>
+      <marker id="ar-laurel"   viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M 0 0 L 8 4 L 0 8 z" fill="#7A8C5C" />
+      </marker>
+    </defs>
+
+    <!-- STAGE LABELS — descriptive only; no Roman numerals up top so
+         the I-V numerals on the layer gates remain unambiguous. -->
+    <g>
+      <text class="diag-stage" x="76"  y="40" text-anchor="middle">Inputs</text>
+      <text class="diag-stage" x="240" y="40" text-anchor="middle">Wrap</text>
+      <text class="diag-stage" x="415" y="40" text-anchor="middle">Model</text>
+      <text class="diag-stage" x="600" y="40" text-anchor="middle">Decide</text>
+      <text class="diag-stage" x="910" y="40" text-anchor="middle">Outcome</text>
+      <!-- subtle dot separators between stages -->
+      <circle cx="158" cy="38" r="1.2" fill="#6B5238" opacity="0.7" />
+      <circle cx="328" cy="38" r="1.2" fill="#6B5238" opacity="0.7" />
+      <circle cx="508" cy="38" r="1.2" fill="#6B5238" opacity="0.7" />
+      <circle cx="755" cy="38" r="1.2" fill="#6B5238" opacity="0.7" />
+    </g>
+    <line x1="20" y1="62" x2="940" y2="62" class="diag-rule" />
+
+    <!-- INPUTS -->
+    <rect class="diag-node" x="14" y="100" width="124" height="38" />
+    <text class="diag-label" x="76" y="124" text-anchor="middle">L3 SYSTEM</text>
+
+    <rect class="diag-node" x="14" y="148" width="124" height="38" />
+    <text class="diag-label" x="76" y="172" text-anchor="middle">L2 USER</text>
+
+    <rect class="diag-node" x="14" y="196" width="124" height="38" />
+    <text class="diag-label" x="76" y="220" text-anchor="middle">L1 RAG</text>
+
+    <rect class="diag-node threat-source" x="14" y="244" width="124" height="38" />
+    <text class="diag-label block" x="76" y="268" text-anchor="middle">L0 RETRIEVED</text>
+
+    <text class="diag-cap" x="76" y="306" text-anchor="middle">untrusted at the bottom</text>
+
+    <!-- CCPT -->
+    <rect class="diag-node primary" x="180" y="138" width="130" height="106" rx="2" />
+    <text class="diag-roman" x="200" y="166">I</text>
+    <text class="diag-label" x="270" y="166" text-anchor="end">CCPT</text>
+    <line x1="200" y1="178" x2="290" y2="178" class="diag-rule" />
+    <text class="diag-sub" x="245" y="200" text-anchor="middle">HMAC envelope</text>
+    <text class="diag-sub tight" x="245" y="218" text-anchor="middle">binds origin +</text>
+    <text class="diag-sub tight" x="245" y="234" text-anchor="middle">trust level</text>
+
+    <!-- MODEL -->
+    <rect class="diag-node primary" x="360" y="156" width="110" height="70" rx="2" />
+    <text class="diag-label" x="415" y="184" text-anchor="middle">MODEL</text>
+    <line x1="375" y1="194" x2="455" y2="194" class="diag-rule" />
+    <text class="diag-sub" x="415" y="214" text-anchor="middle">claude · gpt · gemini</text>
+
+    <!-- DECIDE: 4 voting gates with aligned Roman numerals -->
+    <text class="diag-edge-label" x="600" y="92" text-anchor="middle">votes on proposed tool call</text>
+
+    <rect class="diag-node" x="520" y="100" width="160" height="44" />
+    <text class="diag-roman" x="540" y="128" text-anchor="middle">IV</text>
+    <text class="diag-label" x="655" y="122" text-anchor="end">CANARY</text>
+    <text class="diag-sub tight" x="655" y="138" text-anchor="end">leak in output?</text>
+
+    <rect class="diag-node" x="520" y="152" width="160" height="44" />
+    <text class="diag-roman" x="540" y="180" text-anchor="middle">II</text>
+    <text class="diag-label" x="655" y="174" text-anchor="end">LATTICE</text>
+    <text class="diag-sub tight" x="655" y="190" text-anchor="end">L0 / L1 → tool?</text>
+
+    <rect class="diag-node" x="520" y="204" width="160" height="44" />
+    <text class="diag-roman" x="540" y="232" text-anchor="middle">III</text>
+    <text class="diag-label" x="655" y="226" text-anchor="end">ANCHOR</text>
+    <text class="diag-sub tight" x="655" y="242" text-anchor="end">drift from intent?</text>
+
+    <rect class="diag-node" x="520" y="256" width="160" height="44" />
+    <text class="diag-roman" x="540" y="284" text-anchor="middle">V</text>
+    <text class="diag-label" x="655" y="278" text-anchor="end">CAPABILITY</text>
+    <text class="diag-sub tight" x="655" y="294" text-anchor="end">valid signed token?</text>
+
+    <!-- DECISION -->
+    <rect class="diag-node primary" x="730" y="156" width="110" height="70" rx="2" />
+    <text class="diag-label" x="785" y="184" text-anchor="middle">DECISION</text>
+    <line x1="745" y1="194" x2="825" y2="194" class="diag-rule" />
+    <text class="diag-sub tight" x="785" y="214" text-anchor="middle">combine votes</text>
+
+    <!-- OUTCOMES -->
+    <rect class="diag-node outcome-block" x="870" y="100" width="80" height="76" rx="2" />
+    <text class="diag-label block" x="910" y="128" text-anchor="middle">BLOCK</text>
+    <line x1="885" y1="138" x2="935" y2="138" class="diag-rule" />
+    <text class="diag-sub tight" x="910" y="156" text-anchor="middle">tool never</text>
+    <text class="diag-sub tight" x="910" y="170" text-anchor="middle">executes</text>
+
+    <rect class="diag-node outcome-allow" x="870" y="206" width="80" height="76" rx="2" />
+    <text class="diag-label allow" x="910" y="234" text-anchor="middle">TOOL</text>
+    <line x1="885" y1="244" x2="935" y2="244" class="diag-rule" />
+    <text class="diag-sub tight" x="910" y="262" text-anchor="middle">executes on</text>
+    <text class="diag-sub tight" x="910" y="276" text-anchor="middle">real target</text>
+
+    <!-- EDGES — no labels; the stage labels at top + the legend at
+         bottom convey direction. Cleaner without inline annotations. -->
+
+    <!-- Inputs → CCPT -->
+    <path class="diag-edge"        d="M 138 119 L 180 175" />
+    <path class="diag-edge"        d="M 138 167 L 180 185" />
+    <path class="diag-edge"        d="M 138 215 L 180 200" />
+    <path class="diag-edge threat" d="M 138 263 L 180 215" />
+
+    <!-- CCPT → Model -->
+    <path class="diag-edge"        d="M 310 191 L 360 191" marker-end="url(#ar-bronze)" />
+
+    <!-- Model → 4 voting gates -->
+    <path class="diag-edge"        d="M 470 191 Q 495 191 520 122" />
+    <path class="diag-edge threat" d="M 470 191 Q 495 191 520 174" />
+    <path class="diag-edge"        d="M 470 191 Q 495 191 520 226" />
+    <path class="diag-edge"        d="M 470 191 Q 495 191 520 278" />
+
+    <!-- Gates → Decision -->
+    <path class="diag-edge"        d="M 680 122 Q 705 122 730 178" />
+    <path class="diag-edge threat" d="M 680 174 Q 705 174 730 188" />
+    <path class="diag-edge"        d="M 680 226 Q 705 226 730 198" />
+    <path class="diag-edge"        d="M 680 278 Q 705 278 730 208" />
+
+    <!-- Decision → Outcomes -->
+    <path class="diag-edge threat" d="M 840 178 Q 855 178 870 138" marker-end="url(#ar-cinnabar)" />
+    <path class="diag-edge"        d="M 840 204 Q 855 204 870 244" marker-end="url(#ar-laurel)" />
+
+    <!-- THREAT PULSE -->
+    <path id="threat-path" fill="none" stroke="none"
+          d="M 138 263
+             L 180 215
+             L 310 191
+             L 360 191
+             L 470 191
+             Q 495 191 520 174
+             L 680 174
+             Q 705 174 730 188
+             L 840 188
+             Q 855 178 870 138
+             L 910 138" />
+    <circle class="threat-pulse" cx="0" cy="0" r="4.5">
+      <animateMotion dur="8s" repeatCount="indefinite" rotate="auto">
+        <mpath href="#threat-path" />
+      </animateMotion>
+    </circle>
+  </svg>
+
+  <div class="diagram-legend">
+    <span class="legend-item legit"><span class="swatch"></span>legitimate path · L2 user request → tool executes</span>
+    <span class="legend-item threat"><span class="swatch"></span>injection path · L0 retrieved content → blocked before tool runs</span>
+  </div>
+</div>
+
+<script>
+  // ============================================================
+  // Frame-capture mode for the GIF builder. ?t=N freezes the
+  // SVG SMIL animateMotion + any CSS/Web animations at N ms so
+  // headless Chrome can screenshot a deterministic state.
+  // ============================================================
+  const params = new URLSearchParams(location.search);
+  const captureT = params.get('t');
+  if (captureT !== null) {
+    const ms = parseFloat(captureT);
+    document.body.dataset.captureT = ms;
+    function freeze() {
+      const svg = document.querySelector('svg');
+      if (svg && typeof svg.pauseAnimations === 'function') {
+        // Pause first, then seek. Order matters: setCurrentTime
+        // while running can be overridden by the next animation tick.
+        svg.pauseAnimations();
+        svg.setCurrentTime(ms / 1000);
+      }
+      document.getAnimations().forEach(a => {
+        try { a.pause(); a.currentTime = ms; } catch (e) { /* ignore */ }
+      });
+    }
+    document.fonts.ready.then(() => {
+      // Wait long enough for SMIL to register on the timeline before pausing.
+      setTimeout(freeze, 200);
+    });
+  }
+</script>
+
+</body>
+</html>

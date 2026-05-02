@@ -1,0 +1,18 @@
+apiVersion: v2
+name: aegis
+description: AEGIS — Authenticated Execution Gateway for Injection Security
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+home: https://github.com/cwellbournewood/aegis
+sources:
+  - https://github.com/cwellbournewood/aegis
+maintainers:
+  - name: AEGIS Contributors
+keywords:
+  - llm
+  - security
+  - prompt-injection
+  - sidecar
+  - proxy
+icon: https://raw.githubusercontent.com/cwellbournewood/aegis/main/docs/aegis-icon.png

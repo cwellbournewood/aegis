@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AEGIS // identity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --obsidian: #0B0B10;
+    --obsidian-2: #14141B;
+    --obsidian-3: #1C1C26;
+    --bronze: #B0875A;
+    --bronze-bright: #D4A574;
+    --bronze-dim: #6B5238;
+    --bronze-glow: rgba(176, 135, 90, 0.22);
+    --parchment: #F0E5C8;
+    --parchment-dim: #C9BFA4;
+    --signal: #C84B31;
+    --signal-bright: #E76F4C;
+    --laurel: #7A8C5C;
+
+    --rule: rgba(176, 135, 90, 0.22);
+    --rule-strong: rgba(176, 135, 90, 0.45);
+
+    --display: 'Cinzel', 'Trajan Pro', serif;
+    --serif: 'Cormorant Garamond', 'Georgia', serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--obsidian);
+    color: var(--parchment);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    padding: 56px 64px;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(176, 135, 90, 0.06), transparent 60%),
+      radial-gradient(ellipse at 100% 100%, rgba(176, 135, 90, 0.04), transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body > * { position: relative; z-index: 1; }
+
+  .doc-head {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 16px; margin-bottom: 56px;
+  }
+  .doc-head .lhs { font-family: var(--mono); font-size: 10px; letter-spacing: 0.32em; color: var(--bronze); text-transform: uppercase; }
+  .doc-head .lhs .em { color: var(--parchment); }
+  .doc-head .rhs { font-family: var(--serif); font-style: italic; color: var(--parchment-dim); font-size: 14px; }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 9px; letter-spacing: 0.36em; text-transform: uppercase;
+    color: var(--bronze);
+    display: flex; align-items: center; gap: 16px;
+    margin: 56px 0 24px;
+  }
+  .section-title::before, .section-title::after {
+    content: ''; flex: 1; height: 1px; background: var(--rule);
+  }
+  .section-title .num { font-family: var(--serif); font-style: italic; font-weight: 500; color: var(--parchment-dim); font-size: 14px; letter-spacing: 0.05em; text-transform: none; }
+
+  /* ============================================================
+     PRIMARY MARK — wordmark + monogram
+     ============================================================ */
+  .primary-mark {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 56px;
+    align-items: center;
+    padding: 48px 0;
+  }
+
+  .seal {
+    width: 200px; height: 200px;
+    position: relative;
+    color: var(--bronze);
+  }
+  .seal svg { width: 100%; height: 100%; }
+
+  .wordmark-wrap { }
+  .wordmark {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 92px;
+    letter-spacing: 0.04em;
+    line-height: 0.95;
+    color: var(--parchment);
+    margin-bottom: 18px;
+  }
+  .wordmark .gilt {
+    background: linear-gradient(180deg, var(--bronze-bright) 0%, var(--bronze) 50%, var(--bronze-dim) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .strap {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+    color: var(--parchment-dim);
+    border-top: 1px solid var(--rule);
+    padding-top: 14px;
+    max-width: 640px;
+  }
+  .strap .latin { color: var(--bronze); font-style: normal; font-family: var(--display); font-size: 12px; letter-spacing: 0.24em; display: block; margin-top: 10px; }
+
+  /* ============================================================
+     LAYER REGISTRY — five plates
+     ============================================================ */
+  .registry {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 48px;
+  }
+  .plate {
+    border: 1px solid var(--rule);
+    padding: 24px 18px;
+    position: relative;
+    background:
+      linear-gradient(180deg, rgba(176,135,90,0.04), transparent 40%);
+    transition: border-color 0.2s;
+  }
+  .plate::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--bronze), transparent);
+    opacity: 0.6;
+  }
+  .plate .roman {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 32px;
+    letter-spacing: 0.06em;
+    color: var(--bronze);
+    line-height: 1;
+    display: block;
+    margin-bottom: 14px;
+  }
+  .plate .name {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    color: var(--parchment);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .plate .desc {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--parchment-dim);
+  }
+  .plate .glyph {
+    position: absolute; top: 18px; right: 18px;
+    width: 12px; height: 12px;
+    border: 1px solid var(--bronze);
+    transform: rotate(45deg);
+    opacity: 0.5;
+  }
+
+  /* ============================================================
+     COLOUR ROLL
+     ============================================================ */
+  .roll {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+    border: 1px solid var(--rule);
+  }
+  .swatch {
+    padding: 28px 20px;
+    min-height: 140px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    border-right: 1px solid var(--rule);
+  }
+  .swatch:last-child { border-right: none; }
+  .swatch .role { font-family: var(--mono); font-size: 9px; letter-spacing: 0.28em; text-transform: uppercase; }
+  .swatch .name-s { font-family: var(--display); font-size: 18px; letter-spacing: 0.06em; margin-top: 16px; }
+  .swatch .hex { font-family: var(--mono); font-size: 11px; opacity: 0.7; margin-top: 4px; }
+
+  .sw-obs { background: var(--obsidian); color: var(--parchment); }
+  .sw-obs2 { background: var(--obsidian-2); color: var(--parchment-dim); }
+  .sw-bronze { background: var(--bronze); color: var(--obsidian); }
+  .sw-parch { background: var(--parchment); color: var(--obsidian); }
+  .sw-signal { background: var(--signal); color: var(--parchment); }
+
+  /* ============================================================
+     TYPE SPECIMEN
+     ============================================================ */
+  .specimen {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 32px;
+  }
+  .type-card {
+    border-top: 1px solid var(--rule);
+    padding-top: 20px;
+  }
+  .type-card .label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--bronze); }
+  .type-card .label .role { color: var(--parchment-dim); margin-left: 6px; }
+  .type-card .sample-l { font-size: 48px; line-height: 1.1; margin: 18px 0 4px; color: var(--parchment); }
+  .type-card .sample-s { font-size: 14px; color: var(--parchment-dim); }
+  .type-card.display .sample-l { font-family: var(--display); font-weight: 600; letter-spacing: 0.03em; }
+  .type-card.display .sample-s { font-family: var(--display); font-weight: 400; letter-spacing: 0.18em; text-transform: uppercase; font-size: 11px; }
+  .type-card.serif .sample-l { font-family: var(--serif); font-style: italic; font-weight: 500; }
+  .type-card.serif .sample-s { font-family: var(--serif); font-size: 16px; line-height: 1.5; }
+  .type-card.mono .sample-l { font-family: var(--mono); font-weight: 500; font-size: 36px; }
+  .type-card.mono .sample-s { font-family: var(--mono); font-size: 12px; line-height: 1.7; }
+
+  /* ============================================================
+     SEAL VARIANTS
+     ============================================================ */
+  .seal-row { display: flex; gap: 48px; align-items: center; padding: 24px 0; }
+  .seal-mini { width: 96px; height: 96px; color: var(--bronze); }
+  .seal-mini svg { width: 100%; height: 100%; }
+  .seal-row .caption { font-family: var(--serif); font-style: italic; color: var(--parchment-dim); font-size: 14px; max-width: 320px; line-height: 1.4; }
+  .seal-row .caption strong { font-style: normal; font-family: var(--display); font-weight: 500; color: var(--bronze); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+
+  .doc-foot {
+    margin-top: 80px; padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--bronze-dim);
+  }
+  .doc-foot .roman-num { font-family: var(--display); font-weight: 500; font-size: 12px; letter-spacing: 0.1em; color: var(--bronze); }
+</style>
+</head>
+<body>
+
+  <!-- ============================================================
+       DOCUMENT HEADER
+       ============================================================ -->
+  <div class="doc-head">
+    <div class="lhs">AEGIS &nbsp;·&nbsp; <span class="em">VISUAL IDENTITY</span> &nbsp;·&nbsp; PLATE I</div>
+    <div class="rhs">A specimen sheet · MMXXVI</div>
+  </div>
+
+  <!-- ============================================================
+       PRIMARY MARK
+       ============================================================ -->
+  <div class="primary-mark">
+
+    <!-- Shield monogram — the AEGIS primary mark -->
+    <div class="seal">
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5">
+        <!-- shield -->
+        <path d="M 100,16 L 172,44 L 172,112 C 172,152 140,180 100,196 C 60,180 28,152 28,112 L 28,44 Z"
+              stroke-width="1.8"/>
+        <!-- inner shield rule -->
+        <path d="M 100,28 L 160,52 L 160,110 C 160,144 132,168 100,182 C 68,168 40,144 40,110 L 40,52 Z"
+              stroke-width="1" opacity="0.4"/>
+        <!-- center A -->
+        <text x="100" y="128" font-family="Cinzel" font-weight="700" font-size="80" letter-spacing="2"
+              text-anchor="middle" fill="currentColor" stroke="none">A</text>
+        <!-- five-layer pips at base -->
+        <g fill="currentColor" stroke="none">
+          <circle cx="76" cy="160" r="2"/>
+          <circle cx="88" cy="163" r="2"/>
+          <circle cx="100" cy="164" r="2"/>
+          <circle cx="112" cy="163" r="2"/>
+          <circle cx="124" cy="160" r="2"/>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Wordmark -->
+    <div class="wordmark-wrap">
+      <div class="wordmark"><span class="gilt">AEGIS</span></div>
+      <div class="strap">
+        Authenticated Execution Gateway for Injection Security.
+        <span class="latin">SCVTVM · CONTRA · INIECTIONEM</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============================================================
+       LAYER REGISTRY
+       ============================================================ -->
+  <div class="section-title">
+    <span>The Five Layers</span>
+    <span class="num">— in composition, not isolation.</span>
+  </div>
+
+  <div class="registry">
+    <div class="plate">
+      <span class="glyph"></span>
+      <span class="roman">I</span>
+      <div class="name">CCPT</div>
+      <div class="desc">HMAC-signed envelopes binding origin and trust level to every chunk.</div>
+    </div>
+    <div class="plate">
+      <span class="glyph"></span>
+      <span class="roman">II</span>
+      <div class="name">Lattice</div>
+      <div class="desc">Bell-LaPadula info-flow rules. Low content cannot authorise tools.</div>
+    </div>
+    <div class="plate">
+      <span class="glyph"></span>
+      <span class="roman">III</span>
+      <div class="name">Anchor</div>
+      <div class="desc">User intent embedded; proposed actions checked for semantic drift.</div>
+    </div>
+    <div class="plate">
+      <span class="glyph"></span>
+      <span class="roman">IV</span>
+      <div class="name">Canary</div>
+      <div class="desc">Per-session decoy tokens. Leakage is high-confidence attack evidence.</div>
+    </div>
+    <div class="plate">
+      <span class="glyph"></span>
+      <span class="roman">V</span>
+      <div class="name">Capability</div>
+      <div class="desc">Tool calls require single-use, parameter-bound, signed authorisations.</div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       COLOUR ROLL
+       ============================================================ -->
+  <div class="section-title">
+    <span>Colour Roll</span>
+    <span class="num">— two-plate · one signal.</span>
+  </div>
+
+  <div class="roll">
+    <div class="swatch sw-obs">
+      <div class="role">field</div>
+      <div>
+        <div class="name-s">Obsidian</div>
+        <div class="hex">#0B0B10</div>
+      </div>
+    </div>
+    <div class="swatch sw-obs2">
+      <div class="role">surface</div>
+      <div>
+        <div class="name-s">Obsidian II</div>
+        <div class="hex">#14141B</div>
+      </div>
+    </div>
+    <div class="swatch sw-bronze">
+      <div class="role">primary</div>
+      <div>
+        <div class="name-s">Bronze</div>
+        <div class="hex">#B0875A</div>
+      </div>
+    </div>
+    <div class="swatch sw-parch">
+      <div class="role">text</div>
+      <div>
+        <div class="name-s">Parchment</div>
+        <div class="hex">#F0E5C8</div>
+      </div>
+    </div>
+    <div class="swatch sw-signal">
+      <div class="role">block / signal</div>
+      <div>
+        <div class="name-s">Cinnabar</div>
+        <div class="hex">#C84B31</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       TYPE SPECIMEN
+       ============================================================ -->
+  <div class="section-title">
+    <span>Type Specimen</span>
+    <span class="num">— three voices, well-mannered.</span>
+  </div>
+
+  <div class="specimen">
+
+    <div class="type-card display">
+      <div class="label">Cinzel <span class="role">· display, monumental</span></div>
+      <div class="sample-l">VIRTVS</div>
+      <div class="sample-s">Capitals · headings · seals</div>
+    </div>
+
+    <div class="type-card serif">
+      <div class="label">Cormorant Garamond <span class="role">· editorial</span></div>
+      <div class="sample-l">in composition</div>
+      <div class="sample-s">"None of the individual ideas are novel. The contribution is in their composition."</div>
+    </div>
+
+    <div class="type-card mono">
+      <div class="label">JetBrains Mono <span class="role">· technical</span></div>
+      <div class="sample-l">0x9F.A7</div>
+      <div class="sample-s">aegis up --policy ./policy.yml<br>→ ALLOW · 12ms · anchor 0.91</div>
+    </div>
+
+  </div>
+
+  <!-- ============================================================
+       SEAL VARIANTS — secondary marks
+       ============================================================ -->
+  <div class="section-title">
+    <span>Marks &amp; Devices</span>
+    <span class="num">— for the favicon, the ASCII banner, the embossment.</span>
+  </div>
+
+  <div class="seal-row">
+    <div class="seal-mini">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.4">
+        <path d="M 50,8 L 86,22 L 86,56 C 86,76 70,90 50,98 C 30,90 14,76 14,56 L 14,22 Z" stroke-width="1.6"/>
+        <path d="M 50,16 L 78,28 L 78,55 C 78,71 65,83 50,90 C 35,83 22,71 22,55 L 22,28 Z" stroke-width="0.8" opacity="0.4"/>
+        <text x="50" y="64" font-family="Cinzel" font-weight="700" font-size="40" text-anchor="middle" fill="currentColor" stroke="none">A</text>
+      </svg>
+    </div>
+    <div class="caption">
+      <strong>Compact Mark</strong>
+      The shield-and-A at small scale. Used for favicons, GitHub social card, and the top-left corner of the dashboard.
+    </div>
+  </div>
+
+  <div class="seal-row">
+    <div class="seal-mini" style="width: 200px;">
+      <svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.4">
+        <path d="M 14,8 L 50,22 L 50,56 C 50,76 34,90 14,98" stroke-linecap="round"/>
+        <path d="M 14,8 L 14,98" />
+        <path d="M 14,16 L 42,28 L 42,55 C 42,71 30,83 14,90" stroke-width="0.8" opacity="0.4"/>
+        <text x="100" y="68" font-family="Cinzel" font-weight="600" font-size="36" letter-spacing="6" text-anchor="middle" fill="currentColor" stroke="none">AEGIS</text>
+      </svg>
+    </div>
+    <div class="caption">
+      <strong>Horizontal Lockup</strong>
+      Half-shield + wordmark. Used in headers, footers, and the README hero where vertical space is tight.
+    </div>
+  </div>
+
+  <div class="seal-row">
+    <pre style="font-family: var(--mono); color: var(--bronze); font-size: 11px; line-height: 1.3; white-space: pre;">
+   ╔══════════════════════════════════╗
+   ║       _   ___ ___ ___ ___        ║
+   ║      /_\ | __/ __|_ _/ __|       ║
+   ║     / _ \| _| (_ || |\__ \       ║
+   ║    /_/ \_\___\___|___|___/       ║
+   ║                                  ║
+   ║   AVTH · EXEC · GATEWAY · 0.9    ║
+   ╚══════════════════════════════════╝
+</pre>
+    <div class="caption">
+      <strong>CLI Banner</strong>
+      Printed on <code style="font-family:var(--mono); color: var(--parchment);">aegis up</code>. ASCII letterforms inside an enclosure, with a Latin-style strapline. Bronze on obsidian terminal.
+    </div>
+  </div>
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <div class="doc-foot">
+    <div>Apache · 2.0 &nbsp;·&nbsp; OPEN SOURCE</div>
+    <div class="roman-num">— II of XII —</div>
+    <div>github · cwellbournewood/aegis</div>
+  </div>
+
+</body>
+</html>

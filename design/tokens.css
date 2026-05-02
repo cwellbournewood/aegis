@@ -1,0 +1,186 @@
+/* ============================================================
+   AEGIS · DESIGN TOKENS
+   Bronze & Obsidian · Roman
+   Single source of truth for colour, type, and spacing across
+   the dashboard, landing page, and any other web surface.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* -----------------------------------------------------------
+     COLOUR — two plates + signal
+     ----------------------------------------------------------- */
+  --obsidian:        #0B0B10;   /* field */
+  --obsidian-2:      #14141B;   /* surface */
+  --obsidian-3:      #1C1C26;   /* raised surface */
+  --obsidian-4:      #252531;   /* hover / pressed */
+
+  --bronze:          #B0875A;   /* primary */
+  --bronze-bright:   #D4A574;   /* highlight, gilt top */
+  --bronze-dim:      #6B5238;   /* gilt bottom, recessed */
+  --bronze-glow:     rgba(176, 135, 90, 0.22);
+
+  --parchment:       #F0E5C8;   /* primary text */
+  --parchment-dim:   #C9BFA4;   /* secondary text */
+  --parchment-mute:  #8C8472;   /* tertiary / metadata */
+  --parchment-faint: #4D4738;   /* faintest, dividers above text */
+
+  --cinnabar:        #C84B31;   /* BLOCK / signal */
+  --cinnabar-bright: #E76F4C;
+  --cinnabar-dim:    #8B3522;
+  --cinnabar-glow:   rgba(200, 75, 49, 0.30);
+
+  --laurel:          #7A8C5C;   /* ALLOW / verdigris */
+  --laurel-bright:   #9DAA7B;
+  --laurel-dim:      #4F5B3A;
+
+  --amber:           #D4A744;   /* WARN */
+  --amber-bright:    #E8C26C;
+  --amber-dim:       #8A6B26;
+
+  /* -----------------------------------------------------------
+     LINES & SHADOWS
+     ----------------------------------------------------------- */
+  --rule:            rgba(176, 135, 90, 0.20);
+  --rule-strong:     rgba(176, 135, 90, 0.45);
+  --rule-faint:      rgba(176, 135, 90, 0.10);
+  --rule-parch:      rgba(240, 229, 200, 0.08);
+
+  --shadow-deep:     0 24px 48px -16px rgba(0, 0, 0, 0.6);
+  --shadow-mid:      0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  --shadow-glow:     0 0 24px rgba(176, 135, 90, 0.18);
+
+  /* -----------------------------------------------------------
+     TYPE
+     ----------------------------------------------------------- */
+  --display:  'Cinzel', 'Trajan Pro', Georgia, serif;
+  --serif:    'Cormorant Garamond', 'Iowan Old Style', Georgia, serif;
+  --mono:     'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --tracking-display: 0.04em;
+  --tracking-caps:    0.18em;
+  --tracking-allcaps: 0.32em;
+
+  /* -----------------------------------------------------------
+     SPACING — 4px base
+     ----------------------------------------------------------- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+  --s-20: 80px;
+
+  /* -----------------------------------------------------------
+     RADIUS — keep small, this is engraved metal not glass
+     ----------------------------------------------------------- */
+  --r-0: 0;
+  --r-1: 1px;
+  --r-2: 2px;
+  --r-3: 3px;
+}
+
+/* ============================================================
+   GLOBAL RESET — light, only what's needed across surfaces
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--obsidian);
+  color: var(--parchment);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================
+   AMBIENT — subtle gilt vignette, no animations by default
+   ============================================================ */
+.ambient {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 0%, rgba(176, 135, 90, 0.05), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(176, 135, 90, 0.03), transparent 50%);
+}
+
+/* ============================================================
+   DECISION PILLS — used in dashboard logs and elsewhere
+   ============================================================ */
+.pill {
+  display: inline-block;
+  padding: 2px 10px;
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  border-radius: var(--r-1);
+}
+.pill.allow { background: transparent; color: var(--laurel-bright); border: 1px solid var(--laurel); }
+.pill.warn  { background: var(--amber); color: var(--obsidian); }
+.pill.block { background: var(--cinnabar); color: var(--parchment); }
+
+/* ============================================================
+   HAIRLINE RULES — etched dividers, no glow
+   ============================================================ */
+.rule { border: 0; border-top: 1px solid var(--rule); margin: var(--s-8) 0; }
+.rule.strong { border-color: var(--rule-strong); }
+.rule.gilt {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--bronze) 20%, var(--bronze) 80%, transparent);
+  border: 0;
+  opacity: 0.7;
+}
+
+/* ============================================================
+   SECTION TITLE — small caps with rule wings
+   ============================================================ */
+.section-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: var(--tracking-allcaps);
+  text-transform: uppercase;
+  color: var(--bronze);
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin: var(--s-12) 0 var(--s-6);
+}
+.section-title::before,
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+.section-title .num {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 500;
+  color: var(--parchment-dim);
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  text-transform: none;
+}
+
+/* ============================================================
+   ACCESSIBILITY
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+::selection { background: var(--bronze); color: var(--obsidian); }

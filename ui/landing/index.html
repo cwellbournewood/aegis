@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AEGIS · Authenticated Execution Gateway for Injection Security</title>
+<meta name="description" content="Open-source, model-agnostic prompt-injection defense gateway for agentic LLM applications. Five composed layers: CCPT, Trust Lattice, Intent Anchor, Canary Tripwires, Capability Tokens." />
+<meta property="og:title" content="AEGIS · Prompt Injection Defense Gateway" />
+<meta property="og:description" content="Five composed cryptographic and structural defenses for agentic LLMs. A personal project." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     AEGIS · Bronze & Obsidian (Roman)
+     ============================================================ */
+  :root {
+    --obsidian:        #0B0B10;
+    --obsidian-2:      #14141B;
+    --obsidian-3:      #1C1C26;
+    --obsidian-4:      #252531;
+
+    --bronze:          #B0875A;
+    --bronze-bright:   #D4A574;
+    --bronze-dim:      #6B5238;
+
+    --parchment:       #F0E5C8;
+    --parchment-dim:   #C9BFA4;
+    --parchment-mute:  #8C8472;
+    --parchment-faint: #4D4738;
+
+    --cinnabar:        #C84B31;
+    --cinnabar-bright: #E76F4C;
+
+    --laurel:          #7A8C5C;
+    --laurel-bright:   #9DAA7B;
+
+    --amber:           #D4A744;
+    --amber-bright:    #E8C26C;
+
+    --rule:            rgba(176, 135, 90, 0.20);
+    --rule-strong:     rgba(176, 135, 90, 0.45);
+    --rule-faint:      rgba(176, 135, 90, 0.10);
+
+    --display:  'Cinzel', Georgia, serif;
+    --serif:    'Cormorant Garamond', Georgia, serif;
+    --mono:     'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--obsidian);
+    color: var(--parchment);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 0%, rgba(176, 135, 90, 0.05), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 100% 80%, rgba(176, 135, 90, 0.03), transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  ::selection { background: var(--bronze); color: var(--obsidian); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+    .threat-pulse { display: none; }
+  }
+
+  main { position: relative; z-index: 2; }
+
+  a { color: var(--bronze); text-decoration: none; }
+  a:hover { color: var(--bronze-bright); }
+
+  /* ============================================================
+     TOP NAV
+     ============================================================ */
+  nav {
+    display: flex; align-items: center;
+    padding: 20px 48px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--obsidian-2);
+    position: relative; z-index: 2;
+  }
+  nav .brand {
+    display: flex; align-items: center; gap: 14px;
+  }
+  nav .brand-shield {
+    width: 26px; height: 32px;
+    color: var(--bronze);
+  }
+  nav .brand-shield svg { width: 100%; height: 100%; display: block; }
+  nav .logo {
+    font-family: var(--display);
+    font-weight: 600; font-size: 16px;
+    letter-spacing: 0.18em;
+    color: var(--parchment);
+  }
+  nav .logo-sub {
+    font-family: var(--mono);
+    font-size: 9px; letter-spacing: 0.28em;
+    color: var(--bronze);
+    margin-left: 14px;
+    padding-left: 14px;
+    border-left: 1px solid var(--rule);
+    text-transform: uppercase;
+  }
+  nav .nav-links {
+    margin-left: auto;
+    display: flex; gap: 32px;
+    font-family: var(--display);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  nav .nav-links a { color: var(--parchment-dim); }
+  nav .nav-links a:hover { color: var(--bronze-bright); }
+
+  /* ============================================================
+     COMMON SECTION CHROME
+     ============================================================ */
+  section {
+    padding: 100px 48px;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .plate-mark {
+    position: absolute;
+    top: 56px;
+    right: 48px;
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--bronze-dim);
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.32em;
+    color: var(--bronze);
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .section-label::before {
+    content: '';
+    width: 36px;
+    height: 1px;
+    background: var(--bronze);
+  }
+  .section-h2 {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: clamp(32px, 4.4vw, 52px);
+    color: var(--parchment);
+    letter-spacing: 0.02em;
+    line-height: 1.15;
+    margin-bottom: 20px;
+    max-width: 860px;
+  }
+  .section-h2 .em {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 500;
+    color: var(--bronze-bright);
+  }
+  .section-lead {
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--parchment-dim);
+    font-size: 19px;
+    line-height: 1.55;
+    max-width: 760px;
+  }
+
+  /* ============================================================
+     HERO
+     ============================================================ */
+  .hero {
+    padding: 120px 48px 100px;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    border: 1px solid var(--laurel);
+    color: var(--laurel-bright);
+    font-family: var(--display);
+    font-size: 10px; letter-spacing: 0.22em;
+    background: rgba(122, 140, 92, 0.04);
+    margin-bottom: 40px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .hero-badge .dot {
+    width: 6px; height: 6px;
+    background: var(--laurel-bright);
+    border-radius: 50%;
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+  @keyframes breathe { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+  .hero-mark {
+    margin-bottom: 36px;
+    display: flex; align-items: flex-start; gap: 32px;
+  }
+  .hero-shield {
+    width: 88px; height: 105px;
+    color: var(--bronze);
+    flex-shrink: 0;
+    margin-top: 14px;
+  }
+  .hero-shield svg { width: 100%; height: 100%; }
+  .hero-wordmark {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(64px, 11vw, 156px);
+    line-height: 0.92;
+    letter-spacing: 0.04em;
+    background: linear-gradient(180deg, var(--bronze-bright) 0%, var(--bronze) 50%, var(--bronze-dim) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero-strap {
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.32em;
+    color: var(--parchment-mute);
+    text-transform: uppercase;
+    border-top: 1px solid var(--rule);
+    padding-top: 14px;
+    max-width: 880px;
+  }
+
+  .hero-tagline {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--parchment);
+    max-width: 800px;
+    margin-top: 36px;
+  }
+  .hero-tagline em {
+    font-style: italic;
+    color: var(--bronze-bright);
+  }
+  .hero-tagline strong {
+    color: var(--parchment);
+    font-weight: 600;
+    font-style: normal;
+  }
+  .hero-latin {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 12px;
+    letter-spacing: 0.28em;
+    color: var(--bronze);
+    margin-top: 22px;
+  }
+
+  .hero-cta {
+    margin-top: 56px;
+    display: flex; gap: 14px; flex-wrap: wrap;
+  }
+  .btn {
+    font-family: var(--display);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    padding: 16px 28px;
+    border: 1px solid var(--bronze);
+    background: var(--bronze);
+    color: var(--obsidian);
+    cursor: pointer;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: all 0.18s;
+    display: inline-flex; align-items: center; gap: 12px;
+  }
+  .btn:hover {
+    background: var(--bronze-bright);
+    border-color: var(--bronze-bright);
+    color: var(--obsidian);
+  }
+  .btn.secondary {
+    background: transparent;
+    color: var(--bronze);
+  }
+  .btn.secondary:hover {
+    background: rgba(176, 135, 90, 0.08);
+    color: var(--bronze-bright);
+  }
+
+  /* ============================================================
+     PROBLEM CARDS
+     ============================================================ */
+  .problem-grid {
+    margin-top: 64px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+  .problem-card {
+    background: var(--obsidian);
+    padding: 32px 32px 36px;
+    position: relative;
+  }
+  .problem-card .roman-num {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    color: var(--bronze);
+    margin-bottom: 8px;
+  }
+  .problem-card .label {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: 0.06em;
+    color: var(--parchment);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .problem-card p {
+    font-family: var(--serif);
+    font-size: 17px;
+    color: var(--parchment-dim);
+    line-height: 1.55;
+  }
+  .problem-card strong {
+    color: var(--parchment);
+    font-weight: 600;
+    font-style: normal;
+  }
+
+  /* ============================================================
+     DIAGRAM
+     ============================================================ */
+  .diagram-wrapper {
+    margin-top: 64px;
+    background: var(--obsidian-2);
+    border: 1px solid var(--rule);
+    padding: 32px;
+    position: relative;
+  }
+  .diagram-wrapper svg { width: 100%; height: auto; display: block; }
+
+  /* Legend below diagram */
+  .diagram-legend {
+    display: flex;
+    gap: 36px;
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--rule);
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 15px;
+    color: var(--parchment-dim);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    line-height: 1.4;
+  }
+  .legend-item .swatch {
+    width: 28px;
+    height: 1.5px;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .legend-item.legit  .swatch { background: var(--bronze); }
+  .legend-item.threat .swatch {
+    background: linear-gradient(90deg, var(--cinnabar) 0 4px, transparent 4px 8px,
+                                       var(--cinnabar) 8px 12px, transparent 12px 16px,
+                                       var(--cinnabar) 16px 20px, transparent 20px 24px,
+                                       var(--cinnabar) 24px 28px);
+  }
+
+  /* SVG diagram styles */
+  .diag-node {
+    fill: rgba(176, 135, 90, 0.04);
+    stroke: var(--bronze);
+    stroke-width: 1;
+  }
+  .diag-node.threat-source { stroke: var(--cinnabar); fill: rgba(200, 75, 49, 0.06); }
+  .diag-node.outcome-block { stroke: var(--cinnabar); fill: rgba(200, 75, 49, 0.08); }
+  .diag-node.outcome-allow { stroke: var(--laurel);   fill: rgba(122, 140, 92, 0.08); }
+  .diag-node.primary {
+    fill: rgba(176, 135, 90, 0.08);
+    stroke-width: 1.2;
+  }
+
+  .diag-edge { stroke: var(--bronze-dim); stroke-width: 1; fill: none; opacity: 0.7; }
+  .diag-edge.threat {
+    stroke: var(--cinnabar);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 4;
+    opacity: 0.85;
+  }
+  .threat-pulse { fill: var(--cinnabar-bright); filter: drop-shadow(0 0 3px rgba(231, 111, 76, 0.6)); }
+
+  .diag-label {
+    font-family: var(--display);
+    font-weight: 600;
+    fill: var(--parchment);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+  }
+  .diag-label.allow { fill: var(--laurel-bright); }
+  .diag-label.block { fill: var(--cinnabar-bright); }
+
+  .diag-sub {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    fill: var(--parchment-mute);
+    font-size: 12px;
+  }
+  .diag-sub.tight { font-size: 11px; }
+
+  .diag-roman {
+    font-family: var(--display);
+    font-weight: 700;
+    fill: var(--bronze);
+    font-size: 14px;
+    letter-spacing: 0.04em;
+  }
+
+  .diag-rule { stroke: var(--rule); stroke-width: 1; opacity: 0.7; }
+
+  .diag-stage {
+    font-family: var(--mono);
+    font-weight: 500;
+    fill: var(--bronze);
+    font-size: 9px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+  }
+  .diag-stage-num {
+    font-family: var(--display);
+    font-weight: 700;
+    fill: var(--bronze-dim);
+    font-size: 11px;
+  }
+
+  .diag-edge-label {
+    font-family: var(--mono);
+    fill: var(--parchment-mute);
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .diag-cap {
+    font-family: var(--serif);
+    font-style: italic;
+    fill: var(--parchment-mute);
+    font-size: 12px;
+  }
+
+  .diag-edge { stroke: var(--bronze-dim); stroke-width: 1; fill: none; opacity: 0.6; }
+  .diag-edge.threat {
+    stroke: var(--cinnabar);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 4;
+    opacity: 0.85;
+  }
+  .diag-node {
+    fill: rgba(176, 135, 90, 0.04);
+    stroke: var(--bronze);
+    stroke-width: 1;
+  }
+  .diag-node.threat-source {
+    stroke: var(--cinnabar);
+    fill: rgba(200, 75, 49, 0.06);
+  }
+  .diag-node.outcome-block {
+    stroke: var(--cinnabar);
+    fill: rgba(200, 75, 49, 0.08);
+  }
+  .diag-node.outcome-allow {
+    stroke: var(--laurel);
+    fill: rgba(122, 140, 92, 0.08);
+  }
+  .threat-pulse { fill: var(--cinnabar-bright); }
+
+  /* ============================================================
+     LAYER CARDS  (Roman numerals I–V)
+     ============================================================ */
+  .layer-cards {
+    margin-top: 64px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+  .layer-card {
+    background: var(--obsidian);
+    padding: 36px 32px 32px;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .layer-card:hover { background: var(--obsidian-2); }
+  .layer-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--bronze) 30%, var(--bronze) 70%, transparent 100%);
+    opacity: 0.5;
+  }
+  .layer-card .num {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 36px;
+    color: var(--bronze);
+    letter-spacing: 0.06em;
+    line-height: 1;
+    margin-bottom: 18px;
+  }
+  .layer-card h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: 0.18em;
+    color: var(--parchment);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .layer-card .layer-desc {
+    font-family: var(--serif);
+    color: var(--parchment-dim);
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  .layer-card .layer-tag {
+    display: inline-block;
+    margin-top: 18px;
+    padding: 3px 10px;
+    border: 1px solid var(--bronze-dim);
+    color: var(--bronze);
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+  .layer-card .layer-tag.structural    { color: var(--laurel-bright); border-color: var(--laurel); }
+  .layer-card .layer-tag.probabilistic { color: var(--amber-bright);  border-color: var(--amber); }
+
+  /* ============================================================
+     RUBRIC  (Useful for / Not useful for)
+     ============================================================ */
+  .rubric {
+    margin-top: 56px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+  .rubric-block {
+    background: var(--obsidian);
+    padding: 36px 36px 40px;
+    position: relative;
+  }
+  .rubric-block h4 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.22em;
+    color: var(--parchment);
+    text-transform: uppercase;
+    margin-bottom: 22px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .rubric-block h4 .glyph {
+    font-family: var(--display);
+    color: var(--laurel-bright);
+    font-weight: 700;
+  }
+  .rubric-block.danger h4 .glyph { color: var(--cinnabar-bright); }
+  .rubric-block ul {
+    list-style: none;
+  }
+  .rubric-block ul li {
+    padding: 12px 0;
+    padding-left: 28px;
+    position: relative;
+    border-bottom: 1px solid var(--rule-faint);
+    font-family: var(--serif);
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--parchment-dim);
+  }
+  .rubric-block ul li:last-child { border-bottom: none; }
+  .rubric-block ul li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    top: 12px;
+    font-family: var(--display);
+    font-weight: 700;
+    color: var(--laurel-bright);
+  }
+  .rubric-block.danger ul li::before {
+    content: '✕';
+    color: var(--cinnabar-bright);
+  }
+  .rubric-block strong { color: var(--parchment); font-weight: 600; }
+  @media (max-width: 720px) {
+    .rubric { grid-template-columns: 1fr; }
+  }
+
+  /* ============================================================
+     CODE TABS
+     ============================================================ */
+  .code-tabs {
+    margin-top: 48px;
+    background: var(--obsidian-2);
+    border: 1px solid var(--rule);
+    position: relative;
+  }
+  .code-tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--rule);
+    background: var(--obsidian);
+  }
+  .code-tab {
+    padding: 14px 22px;
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--parchment-mute);
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-right: 1px solid var(--rule);
+    transition: color 0.15s, background 0.15s;
+    text-transform: uppercase;
+  }
+  .code-tab:last-child { border-right: none; }
+  .code-tab.active {
+    color: var(--parchment);
+    background: var(--obsidian-2);
+    box-shadow: inset 0 -2px 0 var(--bronze);
+  }
+  .code-tab:not(.active):hover { color: var(--bronze-bright); }
+  pre {
+    padding: 28px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--parchment);
+  }
+  .code-block { display: none; }
+  .code-block.active { display: block; }
+  .tk-keyword { color: var(--bronze-bright); }
+  .tk-string  { color: var(--laurel-bright); }
+  .tk-comment { color: var(--parchment-mute); font-style: italic; }
+  .tk-fn      { color: var(--parchment); }
+
+  /* ============================================================
+     FOOTER
+     ============================================================ */
+  footer {
+    margin-top: 120px;
+    padding: 56px 48px 40px;
+    border-top: 1px solid var(--rule);
+    background: var(--obsidian-2);
+    position: relative; z-index: 2;
+  }
+  .footer-grid {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 280px 1fr 1fr 1fr;
+    gap: 48px;
+  }
+  .footer-brand .brand-shield {
+    width: 32px; height: 38px;
+    color: var(--bronze);
+    margin-bottom: 14px;
+  }
+  .footer-brand .brand-shield svg { width: 100%; height: 100%; }
+  .footer-brand .name {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: 0.18em;
+    color: var(--parchment);
+    margin-bottom: 10px;
+  }
+  .footer-brand p {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 14px;
+    color: var(--parchment-mute);
+    line-height: 1.5;
+    max-width: 220px;
+  }
+  .footer-col h5 {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 9px;
+    letter-spacing: 0.32em;
+    color: var(--bronze);
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .footer-col a {
+    display: block;
+    color: var(--parchment-dim);
+    padding: 5px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    transition: color 0.15s;
+  }
+  .footer-col a:hover { color: var(--bronze-bright); }
+
+  .footer-bottom {
+    max-width: 1200px;
+    margin: 56px auto 0;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    color: var(--parchment-mute);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    display: flex; justify-content: space-between; flex-wrap: wrap;
+    gap: 16px;
+  }
+  .footer-bottom .roman {
+    font-family: var(--display);
+    font-weight: 500;
+    color: var(--bronze-dim);
+    letter-spacing: 0.15em;
+  }
+
+  /* ============================================================
+     RESPONSIVE
+     ============================================================ */
+  @media (max-width: 720px) {
+    nav { padding: 16px 24px; }
+    nav .nav-links { display: none; }
+    .hero { padding: 64px 24px 56px; }
+    .hero-mark { flex-direction: column; gap: 16px; }
+    .hero-shield { width: 56px; height: 67px; margin-top: 0; }
+    section { padding: 64px 24px; }
+    .plate-mark { right: 24px; top: 32px; }
+    .footer-grid { grid-template-columns: 1fr; gap: 32px; }
+    footer { padding: 32px 24px 32px; }
+  }
+</style>
+</head>
+<body>
+
+<main>
+
+<!-- ============================================================
+     NAV
+     ============================================================ -->
+<nav>
+  <div class="brand">
+    <div class="brand-shield">
+      <svg viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M 25,4 L 45,12 L 45,32 C 45,46 36,54 25,58 C 14,54 5,46 5,32 L 5,12 Z" stroke-width="1.6"/>
+        <path d="M 25,10 L 39,16 L 39,30 C 39,40 33,46 25,50 C 17,46 11,40 11,30 L 11,16 Z" stroke-width="0.6" opacity="0.4"/>
+        <text x="25" y="38" font-family="Cinzel" font-weight="700" font-size="22" text-anchor="middle" fill="currentColor" stroke="none">A</text>
+      </svg>
+    </div>
+    <span class="logo">AEGIS</span>
+    <span class="logo-sub">Gateway · v1.0.0</span>
+  </div>
+  <div class="nav-links">
+    <a href="#problem">Why</a>
+    <a href="#how">How</a>
+    <a href="#fit">Fit</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/cwellbournewood/aegis">GitHub</a>
+  </div>
+</nav>
+
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<section class="hero">
+  <div class="hero-badge">
+    <span class="dot"></span>
+    <span>v1.0.0 · Personal Project</span>
+  </div>
+
+  <div class="hero-mark">
+    <div class="hero-shield">
+      <svg viewBox="0 0 200 240" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M 100,16 L 172,44 L 172,128 C 172,180 144,212 100,232 C 56,212 28,180 28,128 L 28,44 Z" stroke-width="1.8"/>
+        <path d="M 100,28 L 160,52 L 160,124 C 160,168 134,196 100,212 C 66,196 40,168 40,124 L 40,52 Z" stroke-width="0.8" opacity="0.4"/>
+        <text x="100" y="142" font-family="Cinzel" font-weight="700" font-size="92" letter-spacing="2" text-anchor="middle" fill="currentColor" stroke="none">A</text>
+        <g fill="currentColor" stroke="none">
+          <circle cx="74" cy="184" r="2.4"/>
+          <circle cx="87" cy="187" r="2.4"/>
+          <circle cx="100" cy="188" r="2.4"/>
+          <circle cx="113" cy="187" r="2.4"/>
+          <circle cx="126" cy="184" r="2.4"/>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <div class="hero-wordmark">AEGIS</div>
+      <div class="hero-strap">Authenticated · Execution · Gateway · for · Injection · Security</div>
+    </div>
+  </div>
+
+  <p class="hero-tagline">
+    A personal project exploring what happens when you treat prompt injection as a
+    <strong>structural problem</strong> instead of a <em>content-classification</em> one.
+    Five composed layers, built around the idea that any defense based on filtering natural
+    language can be bypassed by sufficiently creative natural language &mdash; so the defense
+    should be cryptographic instead.
+  </p>
+  <div class="hero-latin">SCVTVM · CONTRA · INIECTIONEM</div>
+
+  <div class="hero-cta">
+    <a class="btn" href="#how">Read the Architecture &nbsp;→</a>
+    <a class="btn secondary" href="https://github.com/cwellbournewood/aegis">View on GitHub</a>
+  </div>
+</section>
+
+<!-- ============================================================
+     PROBLEM
+     ============================================================ -->
+<section id="problem">
+  <div class="plate-mark">PL. I</div>
+  <div class="section-label">Why I built it</div>
+  <h2 class="section-h2">LLMs cannot tell <span class="em">instructions</span> from <span class="em">data</span>.</h2>
+  <p class="section-lead">
+    Every defense built on natural-language filtering can be bypassed by sufficiently
+    creative natural language. So I wanted to see what a defense built on cryptographic
+    provenance and capability authorization would actually look like.
+  </p>
+  <div class="problem-grid">
+    <div class="problem-card">
+      <div class="roman-num">I</div>
+      <div class="label">Direct Injection</div>
+      <p>
+        Someone types <strong>"ignore prior instructions"</strong> into your input box.
+        Classifiers can be talked around. So AEGIS doesn't ask the model to police itself.
+      </p>
+    </div>
+    <div class="problem-card">
+      <div class="roman-num">II</div>
+      <div class="label">Indirect Injection</div>
+      <p>
+        A malicious email or web page reaches the model through legitimate retrieval and
+        tells it to call a tool. The capability layer makes that <strong>structurally
+        impossible</strong>.
+      </p>
+    </div>
+    <div class="problem-card">
+      <div class="roman-num">III</div>
+      <div class="label">Memory Poisoning</div>
+      <p>
+        Injection planted in an earlier turn or persistent memory activates much later.
+        The <strong>intent anchor</strong> catches the drift the moment it appears.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     HOW IT WORKS
+     ============================================================ -->
+<section id="how">
+  <div class="plate-mark">PL. II</div>
+  <div class="section-label">How it works</div>
+  <h2 class="section-h2">Five composed layers. <span class="em">One audit trail.</span></h2>
+  <p class="section-lead">
+    Three structural layers (CCPT, Lattice, Capability Tokens) degrade slowly under
+    adaptive attack. Two probabilistic layers (Anchor, Canary Tripwires) catch what the
+    structural layers don't. The composition is the defense.
+  </p>
+
+  <div class="diagram-wrapper">
+    <svg viewBox="0 0 960 420" preserveAspectRatio="xMidYMid meet" id="diagram"
+         aria-label="AEGIS five-layer architecture: inputs are wrapped by CCPT, the model proposes a tool call, four output-side gates vote, and only then does the tool execute or get blocked.">
+
+      <!-- ============================================================
+           DEFS — arrow markers
+           ============================================================ -->
+      <defs>
+        <marker id="ar-bronze"   viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 0 L 8 4 L 0 8 z" fill="#B0875A" />
+        </marker>
+        <marker id="ar-cinnabar" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 0 L 8 4 L 0 8 z" fill="#C84B31" />
+        </marker>
+        <marker id="ar-laurel"   viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 0 L 8 4 L 0 8 z" fill="#7A8C5C" />
+        </marker>
+      </defs>
+
+      <!-- ============================================================
+           STAGE LABELS — embedded in SVG so they track the layout.
+           Numerals at exact column centers.
+           ============================================================ -->
+      <g>
+        <text class="diag-stage-num" x="75"  y="32" text-anchor="middle">I</text>
+        <text class="diag-stage"     x="75"  y="52" text-anchor="middle">INPUTS</text>
+
+        <text class="diag-stage-num" x="240" y="32" text-anchor="middle">II</text>
+        <text class="diag-stage"     x="240" y="52" text-anchor="middle">WRAP</text>
+
+        <text class="diag-stage-num" x="415" y="32" text-anchor="middle">III</text>
+        <text class="diag-stage"     x="415" y="52" text-anchor="middle">MODEL</text>
+
+        <text class="diag-stage-num" x="600" y="32" text-anchor="middle">IV</text>
+        <text class="diag-stage"     x="600" y="52" text-anchor="middle">DECIDE</text>
+
+        <text class="diag-stage-num" x="820" y="32" text-anchor="middle">V</text>
+        <text class="diag-stage"     x="820" y="52" text-anchor="middle">OUTCOME</text>
+      </g>
+      <line x1="20" y1="68" x2="940" y2="68" class="diag-rule" />
+
+      <!-- ============================================================
+           ① INPUTS — four trust levels (boxes 124w to fit "L0 RETRIEVED")
+           ============================================================ -->
+      <rect class="diag-node" x="14" y="100" width="124" height="38" />
+      <text class="diag-label" x="76" y="124" text-anchor="middle">L3 SYSTEM</text>
+
+      <rect class="diag-node" x="14" y="148" width="124" height="38" />
+      <text class="diag-label" x="76" y="172" text-anchor="middle">L2 USER</text>
+
+      <rect class="diag-node" x="14" y="196" width="124" height="38" />
+      <text class="diag-label" x="76" y="220" text-anchor="middle">L1 RAG</text>
+
+      <rect class="diag-node threat-source" x="14" y="244" width="124" height="38" />
+      <text class="diag-label block" x="76" y="268" text-anchor="middle">L0 RETRIEVED</text>
+
+      <text class="diag-cap" x="76" y="306" text-anchor="middle">untrusted at the bottom</text>
+
+      <!-- ============================================================
+           ② CCPT — input-side envelope wrap
+           ============================================================ -->
+      <rect class="diag-node primary" x="180" y="138" width="130" height="106" rx="2" />
+      <text class="diag-roman" x="200" y="166">I</text>
+      <text class="diag-label" x="270" y="166" text-anchor="end">CCPT</text>
+      <line x1="200" y1="178" x2="290" y2="178" class="diag-rule" />
+      <text class="diag-sub" x="245" y="200" text-anchor="middle">HMAC envelope</text>
+      <text class="diag-sub tight" x="245" y="218" text-anchor="middle">binds origin +</text>
+      <text class="diag-sub tight" x="245" y="234" text-anchor="middle">trust level</text>
+
+      <!-- ============================================================
+           ③ MODEL
+           ============================================================ -->
+      <rect class="diag-node primary" x="360" y="156" width="110" height="70" rx="2" />
+      <text class="diag-label" x="415" y="184" text-anchor="middle">MODEL</text>
+      <line x1="375" y1="194" x2="455" y2="194" class="diag-rule" />
+      <text class="diag-sub" x="415" y="214" text-anchor="middle">claude · gpt · gemini</text>
+
+      <!-- ============================================================
+           ④ DECIDE — four voting gates (II Lattice, III Anchor, IV Canary, V Capability)
+           Roman numerals fixed-column at x=540 so II/III/IV/V align perfectly.
+           ============================================================ -->
+      <text class="diag-edge-label" x="600" y="92" text-anchor="middle">votes on proposed tool call</text>
+
+      <!-- IV CANARY -->
+      <rect class="diag-node" x="520" y="100" width="160" height="44" />
+      <text class="diag-roman" x="540" y="128" text-anchor="middle">IV</text>
+      <text class="diag-label" x="660" y="122" text-anchor="end">CANARY</text>
+      <text class="diag-sub tight" x="660" y="138" text-anchor="end">leak in output?</text>
+
+      <!-- II LATTICE -->
+      <rect class="diag-node" x="520" y="152" width="160" height="44" />
+      <text class="diag-roman" x="540" y="180" text-anchor="middle">II</text>
+      <text class="diag-label" x="660" y="174" text-anchor="end">LATTICE</text>
+      <text class="diag-sub tight" x="660" y="190" text-anchor="end">L0 / L1 → tool?</text>
+
+      <!-- III ANCHOR -->
+      <rect class="diag-node" x="520" y="204" width="160" height="44" />
+      <text class="diag-roman" x="540" y="232" text-anchor="middle">III</text>
+      <text class="diag-label" x="660" y="226" text-anchor="end">ANCHOR</text>
+      <text class="diag-sub tight" x="660" y="242" text-anchor="end">drift from intent?</text>
+
+      <!-- V CAPABILITY -->
+      <rect class="diag-node" x="520" y="256" width="160" height="44" />
+      <text class="diag-roman" x="540" y="284" text-anchor="middle">V</text>
+      <text class="diag-label" x="660" y="278" text-anchor="end">CAPABILITY</text>
+      <text class="diag-sub tight" x="660" y="294" text-anchor="end">valid signed token?</text>
+
+      <!-- ============================================================
+           Decision Engine
+           ============================================================ -->
+      <rect class="diag-node primary" x="730" y="156" width="110" height="70" rx="2" />
+      <text class="diag-label" x="785" y="184" text-anchor="middle">DECISION</text>
+      <line x1="745" y1="194" x2="825" y2="194" class="diag-rule" />
+      <text class="diag-sub tight" x="785" y="214" text-anchor="middle">combine votes</text>
+
+      <!-- ============================================================
+           ⑤ OUTCOMES — wider boxes, breathing room for text
+           ============================================================ -->
+      <rect class="diag-node outcome-block" x="870" y="100" width="80" height="76" rx="2" />
+      <text class="diag-label block" x="910" y="128" text-anchor="middle">BLOCK</text>
+      <line x1="885" y1="138" x2="935" y2="138" class="diag-rule" />
+      <text class="diag-sub tight" x="910" y="156" text-anchor="middle">tool never</text>
+      <text class="diag-sub tight" x="910" y="170" text-anchor="middle">executes</text>
+
+      <rect class="diag-node outcome-allow" x="870" y="206" width="80" height="76" rx="2" />
+      <text class="diag-label allow" x="910" y="234" text-anchor="middle">TOOL</text>
+      <line x1="885" y1="244" x2="935" y2="244" class="diag-rule" />
+      <text class="diag-sub tight" x="910" y="262" text-anchor="middle">executes on</text>
+      <text class="diag-sub tight" x="910" y="276" text-anchor="middle">real target</text>
+
+      <!-- ============================================================
+           EDGES
+           ============================================================ -->
+
+      <!-- Inputs → CCPT (every chunk wrapped) -->
+      <path class="diag-edge"        d="M 138 119 L 180 175" />
+      <path class="diag-edge"        d="M 138 167 L 180 185" />
+      <path class="diag-edge"        d="M 138 215 L 180 200" />
+      <path class="diag-edge threat" d="M 138 263 L 180 215" />
+      <text class="diag-edge-label"  x="158" y="358" text-anchor="middle">wrap all</text>
+
+      <!-- CCPT → Model -->
+      <path class="diag-edge"        d="M 310 191 L 360 191" marker-end="url(#ar-bronze)" />
+      <text class="diag-edge-label"  x="335" y="183" text-anchor="middle">clean text</text>
+
+      <!-- Model → 4 gates -->
+      <path class="diag-edge"        d="M 470 191 Q 495 191 520 122" />
+      <path class="diag-edge threat" d="M 470 191 Q 495 191 520 174" />
+      <path class="diag-edge"        d="M 470 191 Q 495 191 520 226" />
+      <path class="diag-edge"        d="M 470 191 Q 495 191 520 278" />
+      <text class="diag-edge-label"  x="495" y="358" text-anchor="middle">tool call proposed</text>
+
+      <!-- Gates → Decision -->
+      <path class="diag-edge"        d="M 680 122 Q 705 122 730 178" />
+      <path class="diag-edge threat" d="M 680 174 Q 705 174 730 188" />
+      <path class="diag-edge"        d="M 680 226 Q 705 226 730 198" />
+      <path class="diag-edge"        d="M 680 278 Q 705 278 730 208" />
+
+      <!-- Decision → Outcomes -->
+      <path class="diag-edge threat" d="M 840 178 Q 855 178 870 138" marker-end="url(#ar-cinnabar)" />
+      <path class="diag-edge"        d="M 840 204 Q 855 204 870 244" marker-end="url(#ar-laurel)" />
+
+      <!-- ============================================================
+           ANIMATED THREAT PULSE — exact polyline through real edges:
+           L0 → CCPT → Model → Lattice → Decision → BLOCK
+           ============================================================ -->
+      <path id="threat-path" fill="none" stroke="none"
+            d="M 138 263
+               L 180 215
+               L 310 191
+               L 360 191
+               L 470 191
+               Q 495 191 520 174
+               L 680 174
+               Q 705 174 730 188
+               L 840 188
+               Q 855 178 870 138
+               L 910 138" />
+      <circle class="threat-pulse" cx="0" cy="0" r="4.5">
+        <animateMotion dur="8s" repeatCount="indefinite" rotate="auto">
+          <mpath href="#threat-path" />
+        </animateMotion>
+      </circle>
+    </svg>
+
+    <!-- Legend below diagram -->
+    <div class="diagram-legend">
+      <span class="legend-item legit"><span class="swatch"></span>legitimate path · L2 user request → tool executes</span>
+      <span class="legend-item threat"><span class="swatch"></span>injection path · L0 retrieved content → blocked before tool runs</span>
+    </div>
+  </div>
+
+  <div class="layer-cards">
+    <div class="layer-card">
+      <div class="num">I</div>
+      <h3>CCPT</h3>
+      <div class="layer-desc">
+        HMAC-signed envelopes bind every chunk of context to its origin and trust level.
+        The model sees clean text. The envelopes are internal to the proxy pipeline,
+        never the prompt.
+      </div>
+      <div class="layer-tag structural">Structural</div>
+    </div>
+    <div class="layer-card">
+      <div class="num">II</div>
+      <h3>Lattice</h3>
+      <div class="layer-desc">
+        Bell-LaPadula info-flow rules. Untrusted L0 content cannot authorize tool calls.
+        No matter how persuasive the natural language, the structural rule holds.
+      </div>
+      <div class="layer-tag structural">Structural</div>
+    </div>
+    <div class="layer-card">
+      <div class="num">III</div>
+      <h3>Anchor</h3>
+      <div class="layer-desc">
+        User intent is embedded once per session. Every proposed tool call is checked for
+        cosine drift. Multi-step tasks accumulate anchors automatically so legitimate
+        work doesn't trip the gate.
+      </div>
+      <div class="layer-tag probabilistic">Probabilistic</div>
+    </div>
+    <div class="layer-card">
+      <div class="num">IV</div>
+      <h3>Canary</h3>
+      <div class="layer-desc">
+        Per-session honeytoken instructions seeded into the system prompt. Output a
+        canary token and you've revealed the injection. NFKC normalization defeats
+        splitting attacks.
+      </div>
+      <div class="layer-tag probabilistic">Probabilistic</div>
+    </div>
+    <div class="layer-card">
+      <div class="num">V</div>
+      <h3>Capability</h3>
+      <div class="layer-desc">
+        Tool calls require HMAC-signed, parameter-constrained, single-use tokens the
+        model cannot mint. Possession of the token <em>is</em> the authorization.
+        No prompt can grant it.
+      </div>
+      <div class="layer-tag structural">Structural</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     WHO IT'S FOR
+     ============================================================ -->
+<section id="fit">
+  <div class="plate-mark">PL. III</div>
+  <div class="section-label">Who it's for</div>
+  <h2 class="section-h2">Three yes/no questions.</h2>
+  <p class="section-lead">
+    Three yes &mdash; AEGIS is probably useful. Two yes &mdash; run it in permissive mode for
+    the audit trail. One yes or fewer &mdash; use simpler tools.
+  </p>
+  <div class="rubric">
+    <div class="rubric-block">
+      <h4><span class="glyph">✓</span>Useful for</h4>
+      <ul>
+        <li>LLMs that call tools that <strong>write, send, delete, deploy, or execute</strong></li>
+        <li>LLMs that ingest content from sources you don't control: <strong>RAG, web fetch, MCP servers</strong></li>
+        <li>Agents whose successful injection would cost more than a day of work to recover from</li>
+        <li>Claude Code, Cursor, or Cline setups with third-party MCP servers connected</li>
+      </ul>
+    </div>
+    <div class="rubric-block danger">
+      <h4><span class="glyph">✕</span>Not useful for</h4>
+      <ul>
+        <li>Pure chatbots. No tools to authorize means the strongest layer is dormant.</li>
+        <li>Agents that only see content you authored yourself</li>
+        <li>Pre-product prototypes. Come back when you know what your agent does.</li>
+        <li>Anyone looking for a complete AI security stack &mdash; this is the action-authorization piece, not PII detection or jailbreak filtering</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     INSTALL
+     ============================================================ -->
+<section id="install">
+  <div class="plate-mark">PL. IV</div>
+  <div class="section-label">Install</div>
+  <h2 class="section-h2">One Docker command. <span class="em">One env var.</span></h2>
+  <p class="section-lead">
+    Point your existing Anthropic, OpenAI, or Google client at the AEGIS proxy URL.
+    Mint capability tokens at the moment of user intent. That's the whole loop.
+  </p>
+
+  <div class="code-tabs">
+    <div class="code-tab-bar" role="tablist">
+      <button class="code-tab active" data-tab="docker"     role="tab">Docker</button>
+      <button class="code-tab"        data-tab="python"     role="tab">Python SDK</button>
+      <button class="code-tab"        data-tab="typescript" role="tab">TypeScript SDK</button>
+      <button class="code-tab"        data-tab="claude-code" role="tab">Claude Code</button>
+    </div>
+    <pre class="code-block active" data-tab="docker"><span class="tk-comment"># Run the proxy</span>
+<span class="tk-fn">docker run</span> -d --name aegis -p 8080:8080 \
+  -e <span class="tk-keyword">AEGIS_MASTER_KEY</span>=<span class="tk-string">"$(openssl rand -hex 32)"</span> \
+  ghcr.io/cwellbournewood/aegis:1.0.0
+
+<span class="tk-comment"># Verify it's up</span>
+<span class="tk-fn">curl</span> http://localhost:8080/aegis/health
+<span class="tk-fn">open</span>  http://localhost:8080/aegis/dashboard</pre>
+
+    <pre class="code-block" data-tab="python"><span class="tk-keyword">from</span> aegis.sdk <span class="tk-keyword">import</span> AegisClient
+<span class="tk-keyword">import</span> anthropic
+
+aegis = AegisClient(base_url=<span class="tk-string">"http://localhost:8080"</span>)
+
+session = aegis.session.create(
+    user_intent=<span class="tk-string">"summarize my latest invoice email"</span>,
+    upstream=<span class="tk-string">"anthropic"</span>,
+)
+
+session.capabilities.<span class="tk-fn">mint</span>(
+    <span class="tk-string">"read_email"</span>,
+    constraints={<span class="tk-string">"folder"</span>: {<span class="tk-string">"kind"</span>: <span class="tk-string">"eq"</span>, <span class="tk-string">"value"</span>: <span class="tk-string">"inbox"</span>}},
+)
+
+claude = anthropic.<span class="tk-fn">Anthropic</span>(base_url=session.proxy_url, api_key=<span class="tk-string">"sk-ant-..."</span>)
+resp = claude.messages.<span class="tk-fn">create</span>(
+    model=<span class="tk-string">"claude-sonnet-4-5"</span>,
+    max_tokens=<span class="tk-keyword">512</span>,
+    messages=[{<span class="tk-string">"role"</span>: <span class="tk-string">"user"</span>, <span class="tk-string">"content"</span>: <span class="tk-string">"summarize my latest invoice"</span>}],
+    extra_body={<span class="tk-string">"aegis"</span>: {
+        <span class="tk-string">"session_id"</span>: session.session_id,
+        <span class="tk-string">"capability_tokens"</span>: session.<span class="tk-fn">capability_tokens</span>(),
+    }},
+)</pre>
+
+    <pre class="code-block" data-tab="typescript"><span class="tk-keyword">import</span> { AegisClient, c } <span class="tk-keyword">from</span> <span class="tk-string">"@aegis/guard"</span>;
+<span class="tk-keyword">import</span> Anthropic <span class="tk-keyword">from</span> <span class="tk-string">"@anthropic-ai/sdk"</span>;
+
+<span class="tk-keyword">const</span> aegis = <span class="tk-keyword">new</span> <span class="tk-fn">AegisClient</span>({ baseUrl: <span class="tk-string">"http://localhost:8080"</span> });
+
+<span class="tk-keyword">const</span> session = <span class="tk-keyword">await</span> aegis.<span class="tk-fn">createSession</span>({
+  userIntent: <span class="tk-string">"summarize my latest invoice email"</span>,
+  upstream: <span class="tk-string">"anthropic"</span>,
+});
+
+<span class="tk-keyword">await</span> session.<span class="tk-fn">mintCapability</span>(<span class="tk-string">"read_email"</span>, {
+  constraints: { folder: c.<span class="tk-fn">eq</span>(<span class="tk-string">"inbox"</span>) },
+});
+
+<span class="tk-keyword">const</span> claude = <span class="tk-keyword">new</span> <span class="tk-fn">Anthropic</span>({
+  baseURL: session.proxyUrl,
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});</pre>
+
+    <pre class="code-block" data-tab="claude-code"><span class="tk-comment"># Wrap third-party MCP servers</span>
+<span class="tk-fn">claude</span> mcp add github <span class="tk-string">"aegis mcp-wrap --policy strict -- npx @modelcontextprotocol/server-github"</span>
+
+<span class="tk-comment"># Or route Claude Code's API traffic through AEGIS</span>
+<span class="tk-fn">export</span> <span class="tk-keyword">ANTHROPIC_BASE_URL</span>=<span class="tk-string">"http://localhost:8080/v1/anthropic"</span>
+<span class="tk-fn">claude</span></pre>
+  </div>
+</section>
+
+</main>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <div class="brand-shield">
+        <svg viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M 25,4 L 45,12 L 45,32 C 45,46 36,54 25,58 C 14,54 5,46 5,32 L 5,12 Z" stroke-width="1.6"/>
+          <text x="25" y="38" font-family="Cinzel" font-weight="700" font-size="22" text-anchor="middle" fill="currentColor" stroke="none">A</text>
+        </svg>
+      </div>
+      <div class="name">AEGIS</div>
+      <p>Authenticated Execution Gateway for Injection Security. A personal project.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Project</h5>
+      <a href="https://github.com/cwellbournewood/aegis">GitHub</a>
+      <a href="https://github.com/cwellbournewood/aegis/blob/main/docs/QUICKSTART.md">Quickstart</a>
+      <a href="https://github.com/cwellbournewood/aegis/blob/main/docs/INTERFACES.md">Interfaces</a>
+    </div>
+    <div class="footer-col">
+      <h5>Internals</h5>
+      <a href="https://github.com/cwellbournewood/aegis/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+      <a href="https://github.com/cwellbournewood/aegis/blob/main/docs/OPERATOR.md">Operator guide</a>
+      <a href="https://github.com/cwellbournewood/aegis/blob/main/docs/WHO_SHOULD_USE.md">Who should use it</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>AEGIS · v1.0.0 · Personal Project</span>
+    <span class="roman">— I.MMXXVI —</span>
+    <span>Structural · Open · Model-agnostic</span>
+  </div>
+</footer>
+
+<script>
+  // Code-tab switching
+  document.querySelectorAll('.code-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      document.querySelectorAll('.code-tab').forEach(t => t.classList.toggle('active', t === tab));
+      document.querySelectorAll('.code-block').forEach(b => b.classList.toggle('active', b.dataset.tab === target));
+    });
+  });
+</script>
+
+</body>
+</html>

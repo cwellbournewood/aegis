@@ -1,0 +1,102 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/cwellbournewood/aegis
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: aegis.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: "1000m"
+    memory: 1Gi
+  requests:
+    cpu: "200m"
+    memory: 512Mi
+
+# Source the master key from a Kubernetes Secret. Create with:
+#   kubectl create secret generic aegis-master-key \
+#     --from-literal=master-key="$(openssl rand -hex 32)"
+masterKey:
+  existingSecret: aegis-master-key
+  secretKey: master-key
+
+policy:
+  # Mount a custom policy YAML via ConfigMap. Leave empty to use the bundled default.
+  configMap: ""
+  configKey: policy.yaml
+
+env: {}
+# Example:
+#   AEGIS_ANTHROPIC_URL: https://api.anthropic.com/v1/messages
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
+
+probes:
+  liveness:
+    path: /aegis/health
+    initialDelaySeconds: 15
+    periodSeconds: 30
+  readiness:
+    path: /aegis/health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}
+podLabels: {}
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+# Optional: deploy a sidecar redis as the capability-token nonce store for
+# multi-replica HA. Off by default; in production use a managed Redis.
+redis:
+  enabled: false
+  image: redis:7-alpine
+  password: ""

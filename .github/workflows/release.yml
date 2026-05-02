@@ -1,0 +1,206 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write   # cosign keyless OIDC
+  attestations: write
+
+jobs:
+  docker:
+    name: Build and publish Docker image
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.tags.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+      version: ${{ steps.tags.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/${OWNER_LOWER}/aegis"
+          TAGS="${IMAGE}:sha-${GITHUB_SHA::7}"
+          VERSION=""
+
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            TAGS="${TAGS},${IMAGE}:${VERSION},${IMAGE}:latest"
+          elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+            TAGS="${TAGS},${IMAGE}:main"
+          fi
+
+          {
+            echo "image=${IMAGE}"
+            echo "tags=${TAGS}"
+            echo "version=${VERSION}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Will tag: ${TAGS}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image (keyless, Sigstore Fulcio)
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+          IMAGE: ${{ steps.tags.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      - name: Generate SBOM (SPDX, source tree)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom-source.spdx.json
+
+      - name: Generate SBOM (SPDX, published image)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.tags.outputs.image }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-image.spdx.json
+
+      - name: Attest SBOM against image
+        uses: actions/attest-sbom@v2
+        with:
+          subject-name: ${{ steps.tags.outputs.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom-image.spdx.json
+          push-to-registry: true
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.tags.outputs.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom
+          path: sbom-*.spdx.json
+
+      - name: Smoke-test the published image
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            IMAGE="ghcr.io/${OWNER_LOWER}/aegis:${VERSION}"
+          else
+            IMAGE="ghcr.io/${OWNER_LOWER}/aegis:sha-${GITHUB_SHA::7}"
+          fi
+
+          docker run -d --name aegis-smoke -p 18080:8080 \
+            -e AEGIS_MASTER_KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff \
+            -e AEGIS_DRY_RUN=1 \
+            "${IMAGE}"
+          for i in {1..30}; do
+            if curl --fail --silent http://localhost:18080/aegis/health; then
+              echo
+              echo "smoke test passed"
+              docker logs aegis-smoke
+              docker rm -f aegis-smoke
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "smoke test FAILED, health check never returned 200"
+          docker logs aegis-smoke
+          docker rm -f aegis-smoke
+          exit 1
+
+  github-release:
+    name: Create GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: docker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: sbom
+          path: ./sbom
+
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          # Extract the section under "## [VERSION]" until the next "## [" line.
+          awk -v ver="${VERSION}" '
+            $0 ~ "^## \\[" ver "\\]" {found=1; next}
+            found && /^## \[/ {exit}
+            found {print}
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "Release ${VERSION}." > release-notes.md
+          fi
+          {
+            echo ""
+            echo "## Supply-chain attestations"
+            echo ""
+            echo "- Multi-arch image: \`ghcr.io/${{ github.repository_owner }}/aegis:${VERSION}\` (also \`:latest\`)"
+            echo "- Cosign keyless signature, verify with:"
+            echo "  \`\`\`"
+            echo "  cosign verify ghcr.io/${{ github.repository_owner }}/aegis:${VERSION} \\"
+            echo "    --certificate-identity-regexp=https://github.com/${{ github.repository }}/.+ \\"
+            echo "    --certificate-oidc-issuer=https://token.actions.githubusercontent.com"
+            echo "  \`\`\`"
+            echo "- SLSA build provenance attestation attached to the image (\`gh attestation verify\`)."
+            echo "- SPDX SBOMs for source tree and image attached to this release and as cosign attestations."
+          } >> release-notes.md
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: AEGIS v${{ steps.changelog.outputs.version }}
+          body_path: release-notes.md
+          files: ./sbom/sbom-*.spdx.json
+          draft: false
+          prerelease: ${{ contains(steps.changelog.outputs.version, '-') || startsWith(steps.changelog.outputs.version, '0.') }}

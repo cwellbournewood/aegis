@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AEGIS // palette previews</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Cormorant+Garamond:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #1a1a1a; color: #ddd; font-family: 'JetBrains Mono', monospace; padding: 32px; min-height: 100vh; }
+  .page-title { font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: #888; margin-bottom: 8px; }
+  .page-sub { font-size: 12px; color: #666; margin-bottom: 32px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1600px; margin: 0 auto; }
+  .panel { border-radius: 4px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
+  .panel-label { background: #0d0d0d; color: #888; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; padding: 12px 24px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; }
+  .panel-label .num { color: #444; font-variant-numeric: tabular-nums; }
+  .panel-body { padding: 32px; min-height: 520px; position: relative; }
+
+  .swatches { display: flex; gap: 8px; margin-bottom: 28px; }
+  .swatch { flex: 1; padding: 12px; border-radius: 2px; font-size: 10px; letter-spacing: 0.08em; }
+  .swatch .hex { font-family: 'JetBrains Mono', monospace; opacity: 0.65; display: block; margin-top: 4px; font-size: 9px; }
+
+  .wordmark { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid currentColor; opacity: 1; }
+  .wordmark.with-rule { border-color: currentColor; }
+
+  .mini-card { padding: 16px; border-radius: 2px; margin-bottom: 16px; }
+  .mini-card .label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.5; margin-bottom: 8px; }
+  .mini-card .metric { font-size: 28px; line-height: 1; margin-bottom: 4px; }
+  .mini-card .sub { font-size: 11px; opacity: 0.55; }
+
+  .log-row { display: grid; grid-template-columns: 30px 64px 1fr 60px; gap: 12px; padding: 6px 0; font-size: 11px; align-items: center; }
+  .log-row .seq { opacity: 0.4; }
+  .log-row .pill { padding: 2px 8px; border-radius: 1px; font-size: 9px; letter-spacing: 0.14em; text-align: center; font-weight: 700; }
+  .log-row .reason { opacity: 0.7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .log-row .lat { opacity: 0.4; text-align: right; }
+
+  /* =====================================================
+     1. VELLUM & INK
+     ===================================================== */
+  .vellum {
+    background: #F2EBDA;
+    color: #16193B;
+    font-family: 'Spectral', 'Georgia', serif;
+  }
+  .vellum .wordmark {
+    font-family: 'Spectral', serif;
+    font-weight: 300;
+    font-size: 56px;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    border-bottom: 1px solid #16193B;
+  }
+  .vellum .wordmark .ae { font-style: italic; font-weight: 400; }
+  .vellum .wordmark .strap { font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; font-family: 'IBM Plex Mono', monospace; font-weight: 400; display: block; margin-top: 16px; opacity: 0.7; }
+  .vellum .swatch.ink { background: #16193B; color: #F2EBDA; }
+  .vellum .swatch.vell { background: #F2EBDA; color: #16193B; border: 1px solid #16193B; }
+  .vellum .swatch.seal { background: #8B0000; color: #F2EBDA; }
+  .vellum .mini-card { background: rgba(22, 25, 59, 0.04); border: 1px solid rgba(22, 25, 59, 0.18); font-family: 'IBM Plex Mono', monospace; }
+  .vellum .mini-card .metric { font-family: 'Spectral', serif; font-weight: 300; }
+  .vellum .log-row { font-family: 'IBM Plex Mono', monospace; border-bottom: 1px solid rgba(22, 25, 59, 0.08); }
+  .vellum .log-row.allow .pill { background: transparent; color: #16193B; border: 1px solid #16193B; }
+  .vellum .log-row.warn .pill { background: #16193B; color: #F2EBDA; }
+  .vellum .log-row.block .pill { background: #8B0000; color: #F2EBDA; }
+  .vellum .plate { position: absolute; top: 18px; right: 24px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.2em; opacity: 0.4; }
+  .vellum .rule-decoration { display: flex; align-items: center; gap: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.5; margin-bottom: 12px; }
+  .vellum .rule-decoration::before, .vellum .rule-decoration::after { content: ''; flex: 1; height: 1px; background: currentColor; }
+
+  /* =====================================================
+     2. BRONZE & OBSIDIAN
+     ===================================================== */
+  .bronze {
+    background: #0B0B10;
+    color: #F0E5C8;
+    font-family: 'Cormorant Garamond', 'Georgia', serif;
+  }
+  .bronze .wordmark {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 60px;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    color: #B0875A;
+    border-bottom: 1px solid #B0875A;
+    text-shadow: 0 0 20px rgba(176, 135, 90, 0.3);
+  }
+  .bronze .wordmark .strap { font-size: 10px; letter-spacing: 0.4em; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; font-weight: 400; display: block; margin-top: 14px; color: #F0E5C8; opacity: 0.6; }
+  .bronze .swatch.bronze-c { background: #B0875A; color: #0B0B10; }
+  .bronze .swatch.obsidian { background: #0B0B10; color: #F0E5C8; border: 1px solid #B0875A; }
+  .bronze .swatch.parch { background: #F0E5C8; color: #0B0B10; }
+  .bronze .mini-card { background: rgba(176, 135, 90, 0.06); border: 1px solid rgba(176, 135, 90, 0.3); font-family: 'JetBrains Mono', monospace; }
+  .bronze .mini-card .label { color: #B0875A; }
+  .bronze .mini-card .metric { font-family: 'Cormorant Garamond', serif; color: #B0875A; font-weight: 500; }
+  .bronze .log-row { font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid rgba(176, 135, 90, 0.12); }
+  .bronze .log-row.allow .pill { background: transparent; color: #B0875A; border: 1px solid #B0875A; }
+  .bronze .log-row.warn .pill { background: #B0875A; color: #0B0B10; }
+  .bronze .log-row.block .pill { background: transparent; color: #F0E5C8; border: 1px solid #F0E5C8; }
+  .bronze .seal { position: absolute; top: 24px; right: 24px; width: 64px; height: 64px; border-radius: 50%; border: 1px solid #B0875A; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.15em; color: #B0875A; opacity: 0.7; }
+  .bronze .seal::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; border: 1px solid rgba(176, 135, 90, 0.3); }
+
+  /* =====================================================
+     3. RISO
+     ===================================================== */
+  .riso {
+    background: #F8F5EE;
+    color: #1B45D7;
+    font-family: 'Space Grotesk', sans-serif;
+    position: relative;
+  }
+  .riso::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(27, 69, 215, 0.06) 1px, transparent 1px);
+    background-size: 4px 4px;
+    pointer-events: none;
+  }
+  .riso .panel-body > * { position: relative; }
+  .riso .wordmark {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 64px;
+    letter-spacing: -0.04em;
+    line-height: 0.9;
+    color: #1B45D7;
+    border-bottom: 4px solid #FF48B0;
+    padding-bottom: 12px;
+    position: relative;
+  }
+  .riso .wordmark .stamp { color: #FF48B0; mix-blend-mode: multiply; position: absolute; right: 0; top: 8px; font-size: 11px; letter-spacing: 0.2em; transform: rotate(-3deg); border: 2px solid #FF48B0; padding: 4px 10px; font-weight: 700; }
+  .riso .wordmark .strap { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500; display: block; margin-top: 14px; color: #FF48B0; }
+  .riso .swatch.pink { background: #FF48B0; color: #F8F5EE; }
+  .riso .swatch.blue { background: #1B45D7; color: #F8F5EE; }
+  .riso .swatch.paper { background: #F8F5EE; color: #1B45D7; border: 2px solid #1B45D7; }
+  .riso .mini-card { background: #F8F5EE; border: 2px solid #1B45D7; box-shadow: 4px 4px 0 #FF48B0; }
+  .riso .mini-card .label { color: #FF48B0; font-weight: 600; }
+  .riso .mini-card .metric { font-weight: 700; color: #1B45D7; }
+  .riso .log-row { border-bottom: 1px dashed rgba(27, 69, 215, 0.25); font-weight: 500; }
+  .riso .log-row.allow .pill { background: #1B45D7; color: #F8F5EE; }
+  .riso .log-row.warn .pill { background: #F8F5EE; color: #FF48B0; border: 2px solid #FF48B0; }
+  .riso .log-row.block .pill { background: #FF48B0; color: #F8F5EE; }
+  .riso .stamp-badge { position: absolute; top: 24px; right: 32px; transform: rotate(8deg); border: 2px solid #FF48B0; color: #FF48B0; padding: 6px 12px; font-weight: 700; font-size: 10px; letter-spacing: 0.15em; mix-blend-mode: multiply; }
+
+  /* =====================================================
+     4. CHAMBER
+     ===================================================== */
+  .chamber {
+    background: #13130F;
+    color: #A8A8A0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .chamber .wordmark {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 48px;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: #A8A8A0;
+    border-bottom: 2px solid #FFA600;
+    padding-bottom: 14px;
+  }
+  .chamber .wordmark .blockmark { display: inline-block; width: 14px; height: 48px; background: #FFA600; margin-right: 16px; vertical-align: middle; }
+  .chamber .wordmark .strap { font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 400; display: block; margin-top: 14px; color: #FFA600; }
+  .chamber .swatch.concrete { background: #A8A8A0; color: #13130F; }
+  .chamber .swatch.amber { background: #FFA600; color: #13130F; }
+  .chamber .swatch.oil { background: #13130F; color: #A8A8A0; border: 1px solid #A8A8A0; }
+  .chamber .mini-card { background: rgba(168, 168, 160, 0.04); border: 1px solid rgba(168, 168, 160, 0.25); border-left: 3px solid #FFA600; }
+  .chamber .mini-card .label { color: #FFA600; }
+  .chamber .mini-card .metric { color: #A8A8A0; font-weight: 700; }
+  .chamber .log-row { border-bottom: 1px solid rgba(168, 168, 160, 0.1); }
+  .chamber .log-row.allow .pill { background: transparent; color: #A8A8A0; border: 1px solid #A8A8A0; }
+  .chamber .log-row.warn .pill { background: #FFA600; color: #13130F; }
+  .chamber .log-row.block .pill { background: #A8A8A0; color: #13130F; }
+  .chamber .corner { position: absolute; top: 24px; right: 24px; font-size: 9px; letter-spacing: 0.2em; color: #FFA600; opacity: 0.7; }
+  .chamber .corner::before { content: '▌'; margin-right: 6px; }
+</style>
+</head>
+<body>
+
+<div class="page-title">AEGIS · palette previews</div>
+<div class="page-sub">four duotone directions · same content, different identity</div>
+
+<div class="grid">
+
+  <!-- ============================================
+       1. VELLUM & INK
+       ============================================ -->
+  <div class="panel">
+    <div class="panel-label">
+      <span>01 · VELLUM &amp; INK</span>
+      <span class="num">cryptographic ledger</span>
+    </div>
+    <div class="panel-body vellum">
+      <div class="plate">PL. I</div>
+
+      <div class="wordmark">
+        <span class="ae">A</span>EGIS
+        <span class="strap">Authenticated Execution Gateway · 0.9.0</span>
+      </div>
+
+      <div class="swatches">
+        <div class="swatch vell">VELLUM<span class="hex">#F2EBDA</span></div>
+        <div class="swatch ink">INK<span class="hex">#16193B</span></div>
+        <div class="swatch seal">SEAL<span class="hex">#8B0000</span></div>
+      </div>
+
+      <div class="rule-decoration">decision log</div>
+
+      <div class="log-row allow">
+        <span class="seq">001</span>
+        <span class="pill">ALLOW</span>
+        <span class="reason">user.intent matches anchor · 0.91 cosine</span>
+        <span class="lat">12ms</span>
+      </div>
+      <div class="log-row allow">
+        <span class="seq">002</span>
+        <span class="pill">ALLOW</span>
+        <span class="reason">capability token verified · tool=fetch</span>
+        <span class="lat">9ms</span>
+      </div>
+      <div class="log-row warn">
+        <span class="seq">003</span>
+        <span class="pill">WARN</span>
+        <span class="reason">anchor drift 0.42 · downgraded to L0</span>
+        <span class="lat">14ms</span>
+      </div>
+      <div class="log-row block">
+        <span class="seq">004</span>
+        <span class="pill">BLOCK</span>
+        <span class="reason">canary leakage · trip 0xA7 surfaced</span>
+        <span class="lat">7ms</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       2. BRONZE & OBSIDIAN
+       ============================================ -->
+  <div class="panel">
+    <div class="panel-label">
+      <span>02 · BRONZE &amp; OBSIDIAN</span>
+      <span class="num">athena's shield</span>
+    </div>
+    <div class="panel-body bronze">
+      <div class="seal">AEGIS<br>0.9</div>
+
+      <div class="wordmark">
+        AEGIS
+        <span class="strap">AUTHENTICATED EXECUTION GATEWAY</span>
+      </div>
+
+      <div class="swatches">
+        <div class="swatch bronze-c">BRONZE<span class="hex">#B0875A</span></div>
+        <div class="swatch obsidian">OBSIDIAN<span class="hex">#0B0B10</span></div>
+        <div class="swatch parch">PARCHMENT<span class="hex">#F0E5C8</span></div>
+      </div>
+
+      <div class="log-row allow">
+        <span class="seq">001</span>
+        <span class="pill">ALLOW</span>
+        <span class="reason">user.intent matches anchor · 0.91 cosine</span>
+        <span class="lat">12ms</span>
+      </div>
+      <div class="log-row allow">
+        <span class="seq">002</span>
+        <span class="pill">ALLOW</span>
+        <span class="reason">capability token verified · tool=fetch</span>
+        <span class="lat">9ms</span>
+      </div>
+      <div class="log-row warn">
+        <span class="seq">003</span>
+        <span class="pill">WARN</span>
+        <span class="reason">anchor drift 0.42 · downgraded to L0</span>
+        <span class="lat">14ms</span>
+      </div>
+      <div class="log-row block">
+        <span class="seq">004</span>
+        <span class="pill">BLOCK</span>
+        <span class="reason">canary leakage · trip 0xA7 surfaced</span>
+        <span class="lat">7ms</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       3. RISO TWO-PLATE
+       ============================================ -->
+  <div class="panel">
+    <div class="panel-label">
+      <span>03 · RISO TWO-PLATE</span>
+      <span class="num">indie engineering</span>
+    </div>
+    <div class="panel-body riso">
+      <div class="stamp-badge">v0.9 / OSS</div>
+
+      <div class="wordmark">
+        AEGIS
+        <span class="strap">PROMPT INJECTION DEFENSE / GATEWAY</span>
+      </div>
+
+      <div class="swatches">
+        <div class="swatch pink">FLUORO PINK<span class="hex">#FF48B0</span></div>
+        <div class="swatch blue">FEDERAL BLUE<span class="hex">#1B45D7</span></div>
+        <div class="swatch paper">NEWSPRINT<span class="hex">#F8F5EE</span></div>
+      </div>
+
+      <div class="log-row allow">
+        <span class="seq">001</span>
+        <span class="pill">ALLOW</span>
+        <span class="reason">user.intent matches anchor · 0.91 cosine</span>
+        <span class="lat">12ms</span>
+      </div>
+      <div class="log-row allow">
+        <span class="seq">002</span>
+        <span class="pill">ALLOW</span>
+        <span class="reason">capability token verified · tool=fetch</span>
+        <span class="lat">9ms</span>
+      </div>
+      <div class="log-row warn">
+        <span class="seq">003</span>
+        <span class="pill">WARN</span>
+        <span class="reason">anchor drift 0.42 · downgraded to L0</span>
+        <span class="lat">14ms</span>
+      </div>
+      <div class="log-row block">
+        <span class="seq">004</span>
+        <span class="pill">BLOCK</span>
+        <span class="reason">canary leakage · trip 0xA7 surfaced</span>
+        <span class="lat">7ms</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       4. CHAMBER (BRUTALIST)
+       ============================================ -->
+  <div class="panel">
+    <div class="panel-label">
+      <span>04 · CHAMBER</span>
+      <span class="num">brutalist · industrial</span>
+    </div>
+    <div class="panel-body chamber">
+      <div class="corner">SECTOR 0x01</div>
+
+      <div class="wordmark">
+        <span class="blockmark"></span>AEGIS
+        <span class="strap">AUTH · EXEC · GATEWAY · 0.9.0</span>
+      </div>
+
+      <div class="swatches">
+        <div class="swatch concrete">CONCRETE<span class="hex">#A8A8A0</span></div>
+        <div class="swatch amber">SODIUM AMBER<span class="hex">#FFA600</span></div>
+        <div class="swatch oil">OIL<span class="hex">#13130F</span></div>
+      </div>
+
+      <div class="log-row allow">
+        <span class="seq">001</span>
+        <span class="pill">ALLOW</span>
+        <span class="reason">user.intent matches anchor · 0.91 cosine</span>
+        <span class="lat">12ms</span>
+      </div>
+      <div class="log-row allow">
+        <span class="seq">002</span>
+        <span class="pill">ALLOW</span>
+        <span class="reason">capability token verified · tool=fetch</span>
+        <span class="lat">9ms</span>
+      </div>
+      <div class="log-row warn">
+        <span class="seq">003</span>
+        <span class="pill">WARN</span>
+        <span class="reason">anchor drift 0.42 · downgraded to L0</span>
+        <span class="lat">14ms</span>
+      </div>
+      <div class="log-row block">
+        <span class="seq">004</span>
+        <span class="pill">BLOCK</span>
+        <span class="reason">canary leakage · trip 0xA7 surfaced</span>
+        <span class="lat">7ms</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

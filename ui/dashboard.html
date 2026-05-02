@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AEGIS · Operator Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     AEGIS · Operator Console — Bronze & Obsidian
+     Tokens are mirrored from /design/tokens.css
+     ============================================================ */
+  :root {
+    --obsidian:        #0B0B10;
+    --obsidian-2:      #14141B;
+    --obsidian-3:      #1C1C26;
+    --obsidian-4:      #252531;
+
+    --bronze:          #B0875A;
+    --bronze-bright:   #D4A574;
+    --bronze-dim:      #6B5238;
+    --bronze-glow:     rgba(176, 135, 90, 0.18);
+
+    --parchment:       #F0E5C8;
+    --parchment-dim:   #C9BFA4;
+    --parchment-mute:  #8C8472;
+    --parchment-faint: #4D4738;
+
+    --cinnabar:        #C84B31;
+    --cinnabar-bright: #E76F4C;
+    --cinnabar-dim:    #8B3522;
+
+    --laurel:          #7A8C5C;
+    --laurel-bright:   #9DAA7B;
+
+    --amber:           #D4A744;
+    --amber-bright:    #E8C26C;
+
+    --rule:        rgba(176, 135, 90, 0.20);
+    --rule-strong: rgba(176, 135, 90, 0.45);
+    --rule-faint:  rgba(176, 135, 90, 0.10);
+
+    --display:  'Cinzel', Georgia, serif;
+    --serif:    'Cormorant Garamond', Georgia, serif;
+    --mono:     'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--obsidian);
+    color: var(--parchment);
+    font-family: var(--mono);
+    font-size: 13px;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* faint gilt vignette, no scanlines, no grid */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 50% 35% at 0% 0%, rgba(176, 135, 90, 0.04), transparent 60%),
+      radial-gradient(ellipse 40% 30% at 100% 100%, rgba(176, 135, 90, 0.03), transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body > * { position: relative; z-index: 1; }
+
+  ::selection { background: var(--bronze); color: var(--obsidian); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  .app {
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 64px 1fr 36px;
+  }
+
+  /* ============================================================
+     HEADER
+     ============================================================ */
+  .header {
+    border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center;
+    padding: 0 24px; gap: 32px;
+    background: var(--obsidian-2);
+  }
+  .brand {
+    display: flex; align-items: center; gap: 14px;
+    padding-right: 24px;
+    border-right: 1px solid var(--rule);
+    height: 100%;
+  }
+  .brand-shield {
+    width: 30px; height: 36px;
+    color: var(--bronze);
+    flex-shrink: 0;
+  }
+  .brand-shield svg { width: 100%; height: 100%; display: block; }
+  .brand-text { display: flex; flex-direction: column; line-height: 1; gap: 4px; }
+  .brand-name {
+    font-family: var(--display);
+    font-weight: 600; font-size: 18px;
+    letter-spacing: 0.18em;
+    color: var(--parchment);
+  }
+  .brand-sub {
+    font-family: var(--mono);
+    font-size: 9px; letter-spacing: 0.28em;
+    color: var(--bronze);
+    text-transform: uppercase;
+  }
+
+  .header-stat {
+    display: flex; flex-direction: column;
+    gap: 3px; line-height: 1.1;
+  }
+  .header-stat-label {
+    color: var(--parchment-mute);
+    font-size: 9px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+  .header-stat-value {
+    color: var(--parchment);
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .header-stat-value.bronze { color: var(--bronze-bright); }
+
+  .status-pill {
+    margin-left: auto;
+    display: flex; align-items: center;
+    gap: 10px;
+    padding: 7px 16px;
+    border: 1px solid var(--laurel);
+    color: var(--laurel-bright);
+    font-family: var(--display);
+    font-size: 11px; font-weight: 500;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    background: rgba(122, 140, 92, 0.04);
+    transition: all 0.3s ease;
+  }
+  .status-pill.threat {
+    border-color: var(--cinnabar);
+    color: var(--cinnabar-bright);
+    background: rgba(200, 75, 49, 0.08);
+  }
+  .status-dot {
+    width: 7px; height: 7px;
+    background: var(--laurel-bright);
+    border-radius: 50%;
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+  .status-pill.threat .status-dot { background: var(--cinnabar-bright); }
+  @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+  /* ============================================================
+     MAIN GRID
+     ============================================================ */
+  .grid-main {
+    display: grid;
+    grid-template-columns: 296px 1fr 380px;
+    background: var(--rule);
+    gap: 1px;
+    overflow: hidden;
+  }
+
+  .panel {
+    background: var(--obsidian);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .panel-header {
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--obsidian-2);
+  }
+  .panel-title {
+    font-family: var(--display);
+    font-weight: 500; font-size: 11px;
+    letter-spacing: 0.22em;
+    color: var(--parchment);
+    text-transform: uppercase;
+  }
+  .panel-title .live-dot {
+    display: inline-block;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--bronze);
+    margin-right: 8px;
+    animation: breathe 2.4s ease-in-out infinite;
+    vertical-align: middle;
+  }
+  .panel-corner {
+    color: var(--bronze);
+    font-family: var(--mono);
+    font-size: 10px; letter-spacing: 0.18em;
+  }
+  .panel-corner .em { color: var(--parchment-dim); }
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px;
+  }
+  .panel-body::-webkit-scrollbar { width: 6px; }
+  .panel-body::-webkit-scrollbar-track { background: transparent; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--rule); }
+  .panel-body::-webkit-scrollbar-thumb:hover { background: var(--rule-strong); }
+
+  /* ============================================================
+     LAYER STATUS — Roman-numeral plates I–V
+     ============================================================ */
+  .layer-list { display: flex; flex-direction: column; }
+  .layer {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--rule-faint);
+  }
+  .layer:last-child { border-bottom: none; }
+  .layer-num {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--bronze);
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+  .layer-name {
+    font-family: var(--display);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    color: var(--parchment);
+    text-transform: uppercase;
+  }
+  .layer-stat {
+    color: var(--parchment-mute);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ============================================================
+     STAT BLOCKS
+     ============================================================ */
+  .stat-block {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+  }
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.28em;
+    color: var(--bronze);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .stat-value {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 36px;
+    color: var(--parchment);
+    letter-spacing: 0.04em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-unit {
+    color: var(--parchment-mute);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 8px;
+    display: flex; justify-content: space-between;
+  }
+  .stat-unit .ok { color: var(--laurel-bright); }
+  .stat-unit .threat { color: var(--cinnabar-bright); }
+  .sparkline { width: 100%; height: 52px; margin-top: 8px; }
+
+  /* ============================================================
+     DECISION STREAM
+     ============================================================ */
+  .stream-row {
+    display: grid;
+    grid-template-columns: 88px 78px 120px 1fr 70px;
+    gap: 14px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--rule-faint);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.12s;
+    align-items: center;
+  }
+  .stream-row:hover { background: var(--obsidian-2); }
+  .stream-row.selected {
+    background: rgba(176, 135, 90, 0.06);
+    box-shadow: inset 2px 0 0 var(--bronze);
+  }
+  .stream-row.block { box-shadow: inset 2px 0 0 var(--cinnabar); }
+  .stream-row.warn  { box-shadow: inset 2px 0 0 var(--amber); }
+  .stream-row.block.selected { background: rgba(200, 75, 49, 0.06); }
+
+  .stream-time {
+    color: var(--parchment-mute);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+  }
+  .stream-decision {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-align: center;
+    padding: 3px 8px;
+    border-radius: 1px;
+    text-transform: uppercase;
+  }
+  .d-allow { color: var(--laurel-bright); border: 1px solid var(--laurel); background: transparent; }
+  .d-warn  { color: var(--obsidian); background: var(--amber); border: 1px solid var(--amber); }
+  .d-block { color: var(--parchment); background: var(--cinnabar); border: 1px solid var(--cinnabar); }
+
+  .stream-id {
+    color: var(--bronze);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+  .stream-action {
+    color: var(--parchment);
+    font-family: var(--mono);
+    font-size: 12px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .stream-latency {
+    color: var(--parchment-mute);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .empty-stream, .detail-empty {
+    padding: 64px 32px;
+    text-align: center;
+    color: var(--parchment-faint);
+    font-family: var(--display);
+    font-size: 11px;
+    letter-spacing: 0.28em;
+    line-height: 2.2;
+    text-transform: uppercase;
+  }
+  .detail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+  .empty-stream .em, .detail-empty .em { color: var(--bronze); }
+  .empty-stream .mark {
+    width: 48px; height: 56px;
+    margin: 0 auto 24px;
+    color: var(--bronze);
+    opacity: 0.5;
+  }
+  .empty-stream .mark svg { width: 100%; height: 100%; }
+
+  /* ============================================================
+     EVENT DETAIL
+     ============================================================ */
+  .detail-section { margin-bottom: 24px; }
+  .detail-label {
+    font-family: var(--mono);
+    font-size: 9px; letter-spacing: 0.28em;
+    color: var(--bronze);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .detail-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+  .detail-meta {
+    display: grid;
+    grid-template-columns: 88px 1fr;
+    gap: 6px 12px;
+    font-size: 11px;
+    font-family: var(--mono);
+  }
+  .detail-meta-key {
+    color: var(--parchment-mute);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 10px;
+  }
+  .detail-meta-val {
+    color: var(--parchment);
+    word-break: break-all;
+    font-variant-numeric: tabular-nums;
+  }
+  .detail-meta-val.decision {
+    font-family: var(--display);
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .detail-meta-val.decision.allow { color: var(--laurel-bright); }
+  .detail-meta-val.decision.warn  { color: var(--amber-bright); }
+  .detail-meta-val.decision.block { color: var(--cinnabar-bright); }
+
+  .blocked-by {
+    color: var(--cinnabar-bright);
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .vote {
+    display: grid;
+    grid-template-columns: 22px 110px 1fr;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--rule-faint);
+    font-size: 11px;
+    align-items: start;
+  }
+  .vote:last-child { border-bottom: none; }
+  .vote-icon {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 14px;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .vote-icon.ok   { color: var(--laurel-bright); }
+  .vote-icon.bad  { color: var(--cinnabar-bright); }
+  .vote-icon.warn { color: var(--amber-bright); }
+  .vote-icon.tool { color: var(--bronze); }
+  .vote-name {
+    font-family: var(--display);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--parchment);
+    text-transform: uppercase;
+  }
+  .vote-reason {
+    color: var(--parchment-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.55;
+  }
+  .vote-reason .faint { color: var(--parchment-mute); }
+
+  /* L0/L1/L2/L3 trust-level chips */
+  .lvl {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    padding: 1px 7px;
+    border-radius: 1px;
+  }
+  .lvl-L0 { color: var(--cinnabar-bright); border: 1px solid var(--cinnabar); }
+  .lvl-L1 { color: var(--amber-bright);    border: 1px solid var(--amber); }
+  .lvl-L2 { color: var(--bronze);          border: 1px solid var(--bronze); }
+  .lvl-L3 { color: var(--laurel-bright);   border: 1px solid var(--laurel); }
+
+  /* ============================================================
+     FOOTER
+     ============================================================ */
+  .footer {
+    border-top: 1px solid var(--rule);
+    padding: 0 24px;
+    display: flex; align-items: center;
+    gap: 24px;
+    background: var(--obsidian-2);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--parchment-mute);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+  .footer-key {
+    color: var(--bronze);
+    margin-right: 8px;
+    font-family: var(--display);
+    font-weight: 600;
+  }
+  .footer-tail {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .footer-tail .chain-ok { color: var(--laurel-bright); }
+  .footer-roman {
+    font-family: var(--display);
+    color: var(--bronze-dim);
+    letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============================================================
+       HEADER
+       ============================================================ -->
+  <header class="header">
+
+    <div class="brand">
+      <div class="brand-shield">
+        <svg viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M 25,4 L 45,12 L 45,32 C 45,46 36,54 25,58 C 14,54 5,46 5,32 L 5,12 Z" stroke-width="1.6"/>
+          <path d="M 25,10 L 39,16 L 39,30 C 39,40 33,46 25,50 C 17,46 11,40 11,30 L 11,16 Z" stroke-width="0.6" opacity="0.4"/>
+          <text x="25" y="38" font-family="Cinzel" font-weight="700" font-size="22" text-anchor="middle" fill="currentColor" stroke="none">A</text>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">AEGIS</div>
+        <div class="brand-sub">Operator Console</div>
+      </div>
+    </div>
+
+    <div class="header-stat">
+      <div class="header-stat-label">Version</div>
+      <div class="header-stat-value bronze" id="hdr-version"> </div>
+    </div>
+    <div class="header-stat">
+      <div class="header-stat-label">Policy</div>
+      <div class="header-stat-value" id="hdr-policy"> </div>
+    </div>
+    <div class="header-stat">
+      <div class="header-stat-label">Uptime</div>
+      <div class="header-stat-value" id="hdr-uptime"> </div>
+    </div>
+    <div class="header-stat">
+      <div class="header-stat-label">Sessions</div>
+      <div class="header-stat-value" id="hdr-sessions"> </div>
+    </div>
+
+    <div class="status-pill" id="status-pill" aria-label="system status: armed">
+      <span class="status-dot"></span>
+      <span id="status-text">Armed</span>
+    </div>
+
+  </header>
+
+  <!-- ============================================================
+       MAIN GRID
+       ============================================================ -->
+  <div class="grid-main">
+
+    <!-- LEFT: layer registry + stats -->
+    <aside class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Five Layers</span>
+        <span class="panel-corner"><span class="em">V</span> · V</span>
+      </div>
+      <div class="panel-body">
+
+        <div class="layer-list">
+          <div class="layer">
+            <span class="layer-num">I</span>
+            <span class="layer-name">CCPT</span>
+            <span class="layer-stat" id="layer-ccpt"> </span>
+          </div>
+          <div class="layer">
+            <span class="layer-num">II</span>
+            <span class="layer-name">Lattice</span>
+            <span class="layer-stat" id="layer-lattice"> </span>
+          </div>
+          <div class="layer">
+            <span class="layer-num">III</span>
+            <span class="layer-name">Anchor</span>
+            <span class="layer-stat" id="layer-intent"> </span>
+          </div>
+          <div class="layer">
+            <span class="layer-num">IV</span>
+            <span class="layer-name">Canary</span>
+            <span class="layer-stat" id="layer-canary"> </span>
+          </div>
+          <div class="layer">
+            <span class="layer-num">V</span>
+            <span class="layer-name">Capability</span>
+            <span class="layer-stat" id="layer-capability"> </span>
+          </div>
+        </div>
+
+        <div class="stat-block">
+          <div class="stat-label">Active Sessions</div>
+          <div class="stat-value" id="active-sessions"> </div>
+          <div class="stat-unit"><span>in flight</span></div>
+        </div>
+
+        <div class="stat-block">
+          <div class="stat-label">Block Rate · Window</div>
+          <svg class="sparkline" viewBox="0 0 240 52" preserveAspectRatio="none" id="sparkline" aria-label="block rate sparkline">
+            <polyline id="spark-fill" fill="rgba(176, 135, 90, 0.10)" stroke="none" />
+            <polyline id="spark-line" fill="none" stroke="#B0875A" stroke-width="1.4" />
+          </svg>
+          <div class="stat-unit">
+            <span id="spark-now"> </span>
+            <span class="threat" id="spark-peak">peak  </span>
+          </div>
+        </div>
+
+        <div class="stat-block">
+          <div class="stat-label">Decisions · Window</div>
+          <div class="stat-value" style="font-size: 26px;" id="decisions-total"> </div>
+          <div class="stat-unit">
+            <span class="ok"><span id="decisions-allow"> </span> allow</span>
+            <span class="threat"><span id="decisions-block"> </span> block</span>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- CENTER: decision stream -->
+    <main class="panel">
+      <div class="panel-header">
+        <span class="panel-title">
+          <span class="live-dot"></span>Decision Stream
+        </span>
+        <span class="panel-corner">LIVE · <span class="em">tail -f</span></span>
+      </div>
+      <div class="panel-body" id="stream" style="padding: 0;">
+        <div class="empty-stream" id="stream-empty">
+          <div class="mark">
+            <svg viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M 25,4 L 45,12 L 45,32 C 45,46 36,54 25,58 C 14,54 5,46 5,32 L 5,12 Z"/>
+              <text x="25" y="38" font-family="Cinzel" font-weight="700" font-size="22" text-anchor="middle" fill="currentColor" stroke="none">A</text>
+            </svg>
+          </div>
+          <div class="em">Awaiting Decisions</div>
+          <div>Run a request against</div>
+          <div>/v1/anthropic/messages</div>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT: event detail -->
+    <aside class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Event Detail</span>
+        <span class="panel-corner" id="detail-id"> </span>
+      </div>
+      <div class="panel-body" id="detail">
+        <div class="detail-empty">
+          <div>Select a Decision</div>
+          <div style="opacity: 0.55;">From the stream</div>
+          <div style="margin-top: 32px; color: var(--bronze); font-family: var(--mono); font-size: 9px;">·  ·  ·</div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer class="footer">
+    <div><span class="footer-key">M</span>Metrics</div>
+    <div><span class="footer-key">P</span>Policy</div>
+    <div><span class="footer-key">R</span>Refresh</div>
+    <div class="footer-tail">
+      <span class="chain-ok">●  Hash-chain intact</span>
+      <span><span id="footer-entries"> </span>  entries</span>
+      <span class="footer-roman">— I.MMXXVI —</span>
+    </div>
+  </footer>
+
+</div>
+
+<!-- ============================================================
+     PREVIEW MOCK DATA
+     ============================================================ -->
+<script>
+(function () {
+  const now = Date.now() / 1000;
+  const MOCK_HEALTH = {
+    status: 'ok',
+    version: '1.0.0',
+    uptime_seconds: 1224732,
+    active_sessions: 23,
+    log_entries: 14832,
+    policy_mode: 'balanced'
+  };
+  const MOCK_ENTRIES = [
+    { seq: 14832, ts: now - 5, payload: {
+      request_id: 'req_01H8Y3K9M2NQRX7', session_id: 'ses_4f2a2c8b',
+      upstream: 'anthropic', decision: 'BLOCK',
+      reason: 'L0 cannot authorize tool calls (effective=L0, tool=set_email_forwarding)',
+      score: 0.78, mode: 'balanced', latency_ms: 43, timestamp: now - 5,
+      blocked_by: ['lattice', 'capability', 'intent_drift'],
+      votes: {
+        ccpt_verify: { verdict: 'ALLOW', reason: '3 envelopes verified, all signatures valid' },
+        canary:      { verdict: 'ALLOW', reason: 'no canary tokens leaked in output' },
+        lattice:     { verdict: 'BLOCK', reason: 'L0 origin: retrieved email msg_id=8821 cannot authorize tool_call' },
+        intent_drift:{ verdict: 'BLOCK', reason: 'cosine=0.18 below threshold=0.22, anchor: "summarize my latest invoice email"' },
+        capability:  { verdict: 'BLOCK', reason: 'no token bound to set_email_forwarding, 2 in scope: read_email, send_email(self)' }
+      },
+      tool_calls: [{ tool: 'set_email_forwarding', summary: 'set forwarding rule to attacker@evil.example', params_redacted: ['to'] }],
+      input_chunks: [
+        { chunk_id: 'a3f8...', origin: 'system', level: 'L3' },
+        { chunk_id: 'b2c4...', origin: 'user',   level: 'L2' },
+        { chunk_id: 'c8e1...', origin: 'tool',   level: 'L0' }
+      ]
+    }},
+    { seq: 14831, ts: now - 12, payload: {
+      request_id: 'req_01H8X8M2', session_id: 'ses_4f2a2c8b', upstream: 'anthropic',
+      decision: 'ALLOW', reason: 'all gates ALLOW', score: 0.0, mode: 'balanced',
+      latency_ms: 92, timestamp: now - 12, blocked_by: [],
+      votes: {
+        ccpt_verify: { verdict: 'ALLOW', reason: 'envelopes verified' },
+        canary:      { verdict: 'ALLOW', reason: 'clean' },
+        lattice:     { verdict: 'ALLOW', reason: 'L2 to tool_call permitted' },
+        intent_drift:{ verdict: 'ALLOW', reason: 'cosine=0.81, aligned with anchor' },
+        capability:  { verdict: 'ALLOW', reason: 'token cap_9b3d consumed' }
+      },
+      tool_calls: [{ tool: 'read_email', summary: 'read invoice from inbox', params_redacted: ['folder', 'limit'] }],
+      input_chunks: [{ chunk_id: 'd9a2...', origin: 'system', level: 'L3' }, { chunk_id: 'e1b5...', origin: 'user', level: 'L2' }]
+    }},
+    { seq: 14830, ts: now - 18, payload: {
+      request_id: 'req_01H8X7P4', session_id: 'ses_4f2a2c8b', upstream: 'anthropic',
+      decision: 'ALLOW', reason: 'all gates ALLOW', score: 0.0, mode: 'balanced',
+      latency_ms: 78, timestamp: now - 18, blocked_by: [],
+      votes: {
+        ccpt_verify:       { verdict: 'ALLOW', reason: 'all envelopes verified' },
+        canary:            { verdict: 'ALLOW', reason: '3 canaries seeded' },
+        lattice:           { verdict: 'ALLOW', reason: 'no tool calls' },
+        intent_drift_text: { verdict: 'ALLOW', reason: 'anchor established' }
+      },
+      tool_calls: [],
+      input_chunks: [{ chunk_id: 'f2e8...', origin: 'user', level: 'L2' }]
+    }},
+    { seq: 14829, ts: now - 56, payload: {
+      request_id: 'req_01H8Z1A0', session_id: 'ses_8c1e7f2d', upstream: 'openai',
+      decision: 'WARN', reason: 'intent drift below balanced threshold',
+      score: 0.28, mode: 'balanced', latency_ms: 105, timestamp: now - 56, blocked_by: [],
+      votes: {
+        ccpt_verify: { verdict: 'ALLOW', reason: 'envelopes verified' },
+        canary:      { verdict: 'ALLOW', reason: 'clean' },
+        lattice:     { verdict: 'ALLOW', reason: 'L2 origin' },
+        intent_drift:{ verdict: 'WARN',  reason: 'cosine=0.42 below balanced threshold (0.55), would BLOCK in strict mode' },
+        capability:  { verdict: 'ALLOW', reason: 'token cap_71fa consumed' }
+      },
+      tool_calls: [{ tool: 'bash', summary: 'list current directory contents', params_redacted: ['cmd'] }],
+      input_chunks: []
+    }},
+    { seq: 14828, ts: now - 72, payload: {
+      request_id: 'req_01H902B9', session_id: 'ses_8c1e7f2d', upstream: 'openai',
+      decision: 'ALLOW', reason: 'all gates ALLOW', score: 0.0, mode: 'balanced',
+      latency_ms: 71, timestamp: now - 72, blocked_by: [],
+      votes: {
+        ccpt_verify:       { verdict: 'ALLOW', reason: 'verified' },
+        canary:            { verdict: 'ALLOW', reason: 'clean' },
+        lattice:           { verdict: 'ALLOW', reason: 'no tool calls' },
+        intent_drift_text: { verdict: 'ALLOW', reason: 'aligned' }
+      },
+      tool_calls: [],
+      input_chunks: []
+    }},
+    { seq: 14827, ts: now - 86, payload: {
+      request_id: 'req_01H903F1', session_id: 'ses_a1b2c3d4', upstream: 'anthropic',
+      decision: 'BLOCK', reason: 'canary leak detected', score: 0.85, mode: 'balanced',
+      latency_ms: 38, timestamp: now - 86,
+      blocked_by: ['canary', 'intent_drift'],
+      votes: {
+        ccpt_verify: { verdict: 'ALLOW', reason: 'verified' },
+        canary:      { verdict: 'BLOCK', reason: 'canary token AEGIS-CANARY-9F2A leaked in tool params, injection confirmed' },
+        lattice:     { verdict: 'ALLOW', reason: 'L2 origin' },
+        intent_drift:{ verdict: 'BLOCK', reason: 'cosine=0.09, severe drift, anchor: "generate a quarterly chart"' },
+        capability:  { verdict: 'WARN',  reason: 'bash token in scope but params do not match schema' }
+      },
+      tool_calls: [{ tool: 'bash', summary: 'rm -rf, system reset request', params_redacted: ['cmd'] }],
+      input_chunks: [{ chunk_id: 'aa11...', origin: 'tool', level: 'L0' }]
+    }}
+  ];
+
+  const origFetch = window.fetch;
+  window.fetch = async function (url, opts) {
+    if (typeof url === 'string') {
+      if (url.includes('/aegis/health')) {
+        return new Response(JSON.stringify(MOCK_HEALTH), {
+          status: 200, headers: { 'content-type': 'application/json' }
+        });
+      }
+      if (url.includes('/aegis/decisions')) {
+        return new Response(JSON.stringify({ count: MOCK_ENTRIES.length, entries: MOCK_ENTRIES }), {
+          status: 200, headers: { 'content-type': 'application/json' }
+        });
+      }
+    }
+    return origFetch(url, opts);
+  };
+})();
+</script>
+
+<!-- ============================================================
+     APP LOGIC
+     ============================================================ -->
+<script>
+const els = {
+  streamEl: document.getElementById('stream'),
+  streamEmpty: document.getElementById('stream-empty'),
+  detail: document.getElementById('detail'),
+  detailId: document.getElementById('detail-id'),
+  hdrVersion: document.getElementById('hdr-version'),
+  hdrPolicy: document.getElementById('hdr-policy'),
+  hdrUptime: document.getElementById('hdr-uptime'),
+  hdrSessions: document.getElementById('hdr-sessions'),
+  activeSessions: document.getElementById('active-sessions'),
+  decisionsTotal: document.getElementById('decisions-total'),
+  decisionsAllow: document.getElementById('decisions-allow'),
+  decisionsBlock: document.getElementById('decisions-block'),
+  sparkLine: document.getElementById('spark-line'),
+  sparkFill: document.getElementById('spark-fill'),
+  sparkNow: document.getElementById('spark-now'),
+  sparkPeak: document.getElementById('spark-peak'),
+  footerEntries: document.getElementById('footer-entries'),
+  statusPill: document.getElementById('status-pill'),
+  statusText: document.getElementById('status-text'),
+  layerStats: {
+    CCPT: document.getElementById('layer-ccpt'),
+    LATTICE: document.getElementById('layer-lattice'),
+    INTENT: document.getElementById('layer-intent'),
+    CANARY: document.getElementById('layer-canary'),
+    CAPABILITY: document.getElementById('layer-capability'),
+  },
+};
+
+let entries = [];
+let selectedReqId = null;
+let lastSeq = 0;
+
+const LAYER_DISPLAY = {
+  ccpt_verify: 'CCPT',
+  lattice: 'LATTICE',
+  intent_drift: 'ANCHOR',
+  intent_drift_text: 'ANCHOR',
+  canary: 'CANARY',
+  capability: 'CAPABILITY',
+};
+
+function pickAction(p) {
+  const tcs = p.tool_calls || [];
+  if (tcs.length > 0) return 'tool:' + tcs[0].tool;
+  return 'msg.create';
+}
+
+function fmtTs(ts) {
+  const d = new Date(ts * 1000);
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const s = String(d.getSeconds()).padStart(2, '0');
+  return h + ':' + m + ':' + s;
+}
+
+function fmtUptime(seconds) {
+  const total = Math.floor(seconds);
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  if (d > 0) return d + 'd ' + String(h).padStart(2,'0') + 'h ' + String(m).padStart(2,'0') + 'm';
+  return String(h).padStart(2,'0') + 'h ' + String(m).padStart(2,'0') + 'm';
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+async function fetchHealth() {
+  try {
+    const r = await fetch('/aegis/health');
+    if (!r.ok) return;
+    const h = await r.json();
+    els.hdrVersion.textContent = 'v' + h.version;
+    els.hdrPolicy.textContent = h.policy_mode;
+    els.hdrUptime.textContent = fmtUptime(h.uptime_seconds || 0);
+    els.hdrSessions.textContent = h.active_sessions;
+    els.activeSessions.textContent = h.active_sessions;
+    els.footerEntries.textContent = (h.log_entries || 0).toLocaleString();
+  } catch (e) { /* offline */ }
+}
+
+async function fetchDecisions() {
+  try {
+    const r = await fetch('/aegis/decisions?limit=200');
+    if (!r.ok) return;
+    const data = await r.json();
+    const newEntries = (data.entries || []).map(e => e.payload).filter(Boolean);
+    if (!newEntries.length) {
+      renderStats([]);
+      return;
+    }
+    const previousLastSeq = lastSeq;
+    const latestSeq = data.entries[data.entries.length - 1].seq;
+    entries = newEntries;
+    renderStream();
+    renderStats(entries);
+
+    if (latestSeq !== lastSeq) {
+      const sinceLast = data.entries.filter(e => e.seq > previousLastSeq);
+      if (previousLastSeq > 0 && sinceLast.some(e => (e.payload || {}).decision === 'BLOCK')) {
+        flashThreat();
+      }
+      lastSeq = latestSeq;
+      if (!selectedReqId && entries.length > 0) {
+        selectedReqId = entries[entries.length - 1].request_id;
+        renderDetail(entries[entries.length - 1]);
+      }
+    }
+  } catch (e) { /* offline */ }
+}
+
+function flashThreat() {
+  els.statusPill.classList.add('threat');
+  els.statusText.textContent = 'Block';
+  setTimeout(() => {
+    els.statusPill.classList.remove('threat');
+    els.statusText.textContent = 'Armed';
+  }, 4000);
+}
+
+function renderStream() {
+  if (!entries.length) {
+    if (els.streamEmpty) els.streamEmpty.style.display = '';
+    return;
+  }
+  if (els.streamEmpty) els.streamEmpty.style.display = 'none';
+
+  const reversed = [...entries].reverse();
+  els.streamEl.innerHTML = '';
+  reversed.forEach(p => {
+    const action = pickAction(p);
+    const id = (p.request_id || '').slice(0, 12);
+    const ts = fmtTs(p.timestamp || (Date.now() / 1000));
+    const dec = (p.decision || 'ALLOW');
+    const rowClass = dec === 'BLOCK' ? ' block' : (dec === 'WARN' ? ' warn' : '');
+    const sel = (p.request_id === selectedReqId) ? ' selected' : '';
+    const latency = (p.latency_ms != null) ? Math.round(p.latency_ms) + 'ms' : ' ';
+    const row = document.createElement('div');
+    row.className = 'stream-row' + rowClass + sel;
+    row.innerHTML =
+      '<div class="stream-time">' + ts + '</div>' +
+      '<div class="stream-decision d-' + dec.toLowerCase() + '">' + dec + '</div>' +
+      '<div class="stream-id">' + escapeHtml(id) + '</div>' +
+      '<div class="stream-action">' + escapeHtml(action) + '</div>' +
+      '<div class="stream-latency">' + latency + '</div>';
+    row.addEventListener('click', () => {
+      selectedReqId = p.request_id;
+      renderStream();
+      renderDetail(p);
+    });
+    els.streamEl.appendChild(row);
+  });
+}
+
+function renderDetail(p) {
+  els.detailId.textContent = (p.request_id || '').slice(0, 14);
+  const dec = (p.decision || 'ALLOW');
+  const decClass = dec.toLowerCase();
+
+  const blockedBy = p.blocked_by || [];
+  const blockedHtml = blockedBy.length > 0
+    ? '<div class="detail-section">' +
+        '<div class="detail-label">Blocked By</div>' +
+        '<div class="blocked-by">' +
+          blockedBy.map(b => escapeHtml(b.toUpperCase().replace('INTENT_DRIFT', 'ANCHOR'))).join(' · ') +
+        '</div>' +
+      '</div>'
+    : '';
+
+  const votesHtml = Object.entries(p.votes || {}).map(([layer, v]) => {
+    const verdict = v.verdict || 'ALLOW';
+    const cls = verdict === 'ALLOW' ? 'ok' : (verdict === 'BLOCK' ? 'bad' : 'warn');
+    const icon = verdict === 'ALLOW' ? '✓' : (verdict === 'BLOCK' ? '✕' : '!');
+    const display = LAYER_DISPLAY[layer] || layer.toUpperCase();
+    return '<div class="vote">' +
+      '<div class="vote-icon ' + cls + '">' + icon + '</div>' +
+      '<div class="vote-name">' + escapeHtml(display) + '</div>' +
+      '<div class="vote-reason">' + escapeHtml(v.reason || '') + '</div>' +
+    '</div>';
+  }).join('');
+
+  const tcs = p.tool_calls || [];
+  const toolsHtml = tcs.length
+    ? '<div class="detail-section">' +
+        '<div class="detail-label">Proposed Tool Calls</div>' +
+        tcs.map(t =>
+          '<div class="vote">' +
+            '<div class="vote-icon tool">▸</div>' +
+            '<div class="vote-name">' + escapeHtml(t.tool || '?') + '</div>' +
+            '<div class="vote-reason">' + escapeHtml(t.summary || '') +
+            '<br><span class="faint">params: ' +
+            ((t.params_redacted || []).map(escapeHtml).join(', ') || ' ') +
+            '</span></div>' +
+          '</div>'
+        ).join('') +
+      '</div>'
+    : '';
+
+  const chunks = p.input_chunks || [];
+  const chunksHtml = chunks.length
+    ? '<div class="detail-section">' +
+        '<div class="detail-label">Input Chunks</div>' +
+        '<div style="display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: 11px; font-family: var(--mono);">' +
+          chunks.map(c =>
+            '<span style="color: var(--parchment-mute); letter-spacing: 0.06em;">' + escapeHtml(c.origin) + ' · ' + escapeHtml(c.chunk_id || '') + '</span>' +
+            '<span class="lvl lvl-' + escapeHtml(c.level) + '">' + escapeHtml(c.level) + '</span>'
+          ).join('') +
+        '</div>' +
+      '</div>'
+    : '';
+
+  els.detail.innerHTML =
+    '<div class="detail-section">' +
+      '<div class="detail-label">Metadata</div>' +
+      '<div class="detail-meta">' +
+        '<div class="detail-meta-key">request</div><div class="detail-meta-val">' + escapeHtml(p.request_id || '') + '</div>' +
+        '<div class="detail-meta-key">session</div><div class="detail-meta-val">' + escapeHtml(p.session_id || '') + '</div>' +
+        '<div class="detail-meta-key">upstream</div><div class="detail-meta-val">' + escapeHtml(p.upstream || '') + '</div>' +
+        '<div class="detail-meta-key">mode</div><div class="detail-meta-val">' + escapeHtml(p.mode || '') + '</div>' +
+        '<div class="detail-meta-key">latency</div><div class="detail-meta-val">' + (p.latency_ms != null ? Math.round(p.latency_ms) + 'ms' : ' ') + '</div>' +
+        '<div class="detail-meta-key">decision</div><div class="detail-meta-val decision ' + decClass + '">' + escapeHtml(dec) + '</div>' +
+      '</div>' +
+    '</div>' +
+    blockedHtml +
+    '<div class="detail-section">' +
+      '<div class="detail-label">Layer Votes</div>' +
+      (votesHtml || '<div class="detail-empty" style="height: auto; padding: 12px;">no votes recorded</div>') +
+    '</div>' +
+    toolsHtml +
+    chunksHtml +
+    (p.reason ?
+      '<div class="detail-section">' +
+        '<div class="detail-label">Reason</div>' +
+        '<div style="color: var(--parchment-dim); font-family: var(--mono); font-size: 11px; line-height: 1.6;">' + escapeHtml(p.reason) + '</div>' +
+      '</div>' : '');
+}
+
+function renderStats(entries) {
+  const counts = { ALLOW: 0, WARN: 0, BLOCK: 0 };
+  const layerCounts = { CCPT: 0, LATTICE: 0, INTENT: 0, CANARY: 0, CAPABILITY: 0 };
+  for (const p of entries) {
+    counts[p.decision || 'ALLOW'] = (counts[p.decision || 'ALLOW'] || 0) + 1;
+    for (const layer of Object.keys(p.votes || {})) {
+      const display = LAYER_DISPLAY[layer];
+      if (display === 'ANCHOR') {
+        layerCounts.INTENT++;
+      } else if (display) {
+        layerCounts[display] = (layerCounts[display] || 0) + 1;
+      }
+    }
+  }
+  els.decisionsTotal.textContent = entries.length.toLocaleString();
+  els.decisionsAllow.textContent = (counts.ALLOW || 0).toLocaleString();
+  els.decisionsBlock.textContent = (counts.BLOCK || 0).toLocaleString();
+  for (const [name, el] of Object.entries(els.layerStats)) {
+    el.textContent = layerCounts[name] ? layerCounts[name].toString() : ' ';
+  }
+  drawSparkline(entries);
+}
+
+function drawSparkline(entries) {
+  if (!entries.length) {
+    els.sparkLine.setAttribute('points', '');
+    els.sparkFill.setAttribute('points', '');
+    els.sparkNow.textContent = ' ';
+    els.sparkPeak.textContent = 'peak  ';
+    return;
+  }
+  const W = 240, H = 52;
+  const buckets = 30;
+  const startTs = entries[0].timestamp || (Date.now() / 1000);
+  const endTs = entries[entries.length - 1].timestamp || Date.now() / 1000;
+  const span = Math.max(1, endTs - startTs);
+  const interval = span / buckets;
+  const counts = new Array(buckets).fill(0).map(() => ({ b: 0, n: 0 }));
+  for (const p of entries) {
+    const ts = p.timestamp || endTs;
+    const idx = Math.min(buckets - 1, Math.max(0, Math.floor((ts - startTs) / interval)));
+    counts[idx].n++;
+    if ((p.decision || 'ALLOW') === 'BLOCK') counts[idx].b++;
+  }
+  const rates = counts.map(c => c.n ? c.b / c.n : 0);
+  const max = Math.max(0.01, ...rates);
+  const w = W / (buckets - 1);
+  let line = '';
+  for (let i = 0; i < buckets; i++) {
+    const x = i * w;
+    const y = H - (rates[i] / max) * (H - 4) - 2;
+    line += (i === 0 ? '' : ' ') + x.toFixed(1) + ',' + y.toFixed(1);
+  }
+  els.sparkLine.setAttribute('points', line);
+  els.sparkFill.setAttribute('points', line + ' ' + W + ',' + H + ' 0,' + H);
+  const overallRate = entries.filter(p => (p.decision || '') === 'BLOCK').length / entries.length;
+  els.sparkNow.textContent = (overallRate * 100).toFixed(1) + '%';
+  els.sparkPeak.textContent = 'peak ' + (max * 100).toFixed(1) + '%';
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  if (e.key === 'r' || e.key === 'R') { fetchHealth(); fetchDecisions(); }
+  if (e.key === 'm' || e.key === 'M') window.open('/metrics', '_blank');
+  if (e.key === 'p' || e.key === 'P') window.open('/aegis/health', '_blank');
+});
+
+fetchHealth();
+fetchDecisions();
+setInterval(fetchHealth, 5000);
+setInterval(fetchDecisions, 1500);
+</script>
+
+</body>
+</html>
